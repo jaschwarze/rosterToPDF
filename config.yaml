@@ -1,0 +1,3 @@
+input_path: "./input"
+output_path: "./output"
+archive_path: "./archive"
