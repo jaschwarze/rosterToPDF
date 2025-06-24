@@ -24,13 +24,21 @@ if len(excel_files) != 1:
 
 excel_file_path = excel_files[0]
 
-employee_data = pd.read_excel(excel_file_path, sheet_name="Mitarbeiterliste", skiprows=2, usecols="A:C, E")
-special_dates_data = pd.read_excel(excel_file_path, sheet_name="Sondertermine", skiprows=2)
-planning_data = pd.read_excel(excel_file_path, sheet_name="Dienstplanung")
+employee_data = pd.read_excel(excel_file_path, sheet_name="Mitarbeiterliste", skiprows=2, header=None, usecols="A:C, E")
+special_dates_data = pd.read_excel(excel_file_path, sheet_name="Sondertermine", skiprows=2, header=None)
+planning_data = pd.read_excel(excel_file_path, sheet_name="Dienstplanung", header=None)
 
+employee_dict = {
+    row[0]: (row[1], row[2])
+    for row in employee_data.itertuples(index=False)
+}
 
-# TODO: Parse Mitarbeiter
-# TODO: Parse Gruppen
-# TODO: Parse Zurodnungen
+special_dates_dict = {
+    row[0]: (row[1], row[2], row[3], row[4], row[5])
+    for row in special_dates_data.itertuples(index=True)
+}
 
-print(employee_data)
+possible_assignments = employee_data[employee_data[4].notna()][4].tolist()
+possible_groups = possible_assignments[:6]
+
+# TODO: Parse Diensplan
