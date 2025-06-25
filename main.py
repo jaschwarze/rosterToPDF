@@ -3,6 +3,7 @@ from pathlib import Path
 import glob
 import os
 import pandas as pd
+from datetime import datetime
 
 with open("config.yaml", "r") as file:
     config = yaml.safe_load(file)
@@ -41,4 +42,57 @@ special_dates_dict = {
 possible_assignments = employee_data[employee_data[4].notna()][4].tolist()
 possible_groups = possible_assignments[:6]
 
-# TODO: Parse Diensplan
+year = planning_data[1][0]
+calendar_week = planning_data[1][1]
+
+start_date = planning_data[1][3].strftime("%Y-%m-%d")
+end_date = planning_data[1][5].strftime("%Y-%m-%d")
+
+planning_data_dict = {
+    row[0]: (row[1], row[2], row[3], row[4], row[5])
+    for row in planning_data.itertuples(index=True)
+}
+
+
+days = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"]
+cols_per_day = 6
+
+temp_frame = planning_data.iloc[12:]
+
+for i in range(0, len(temp_frame), 3):
+    row_1 = temp_frame.iloc[i]
+    row_2 = temp_frame.iloc[i + 1]
+    row_3 = temp_frame.iloc[i + 2]
+
+    employee_name = row_1[0]
+
+    working_times = []
+
+    for day_idx, day in enumerate(days):
+        start = day_idx * cols_per_day
+        end = start + cols_per_day
+
+        times_1 = row_1.iloc[start:end].tolist()
+        times_2 = row_2.iloc[start:end].tolist()
+
+        print(times_1)
+        print(times_2)
+
+
+        working_times.append({
+            "day": day,
+            "entry_1": {
+                "start": times_1[0],
+                "end": times_1[1],
+                "break_start": times_1[2],
+                "break_end": times_1[3],
+                "assignment": times_1[4]
+            },
+            "entry_2": {
+                "start": times_2[0],
+                "end": times_2[1],
+                "break_start": times_2[2],
+                "break_end": times_2[3],
+                "assignment": times_2[4]
+            }
+        })
