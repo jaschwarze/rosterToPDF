@@ -53,11 +53,11 @@ planning_data_dict = {
     for row in planning_data.itertuples(index=True)
 }
 
-
 days = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"]
 cols_per_day = 6
-
 temp_frame = planning_data.iloc[12:]
+
+employee_times = []
 
 for i in range(0, len(temp_frame), 3):
     row_1 = temp_frame.iloc[i]
@@ -65,19 +65,14 @@ for i in range(0, len(temp_frame), 3):
     row_3 = temp_frame.iloc[i + 2]
 
     employee_name = row_1[0]
-
     working_times = []
 
     for day_idx, day in enumerate(days):
-        start = day_idx * cols_per_day
-        end = start + cols_per_day
+        start = (day_idx * cols_per_day) + 1
+        end = (start + cols_per_day) - 1
 
-        times_1 = row_1.iloc[start:end].tolist()
-        times_2 = row_2.iloc[start:end].tolist()
-
-        print(times_1)
-        print(times_2)
-
+        times_1 = row_1.iloc[start:end].fillna("-").tolist()
+        times_2 = row_2.iloc[start:end].fillna("-").tolist()
 
         working_times.append({
             "day": day,
@@ -96,3 +91,32 @@ for i in range(0, len(temp_frame), 3):
                 "assignment": times_2[4]
             }
         })
+
+    additional_times = []
+    for day_idx, day in enumerate(days):
+        start = (day_idx * cols_per_day) + 1
+        end = (start + cols_per_day) - 1
+
+        times = row_3.iloc[start:end].fillna("-").tolist()
+
+        additional_times.append({
+            "day": day,
+            "entry_1": {
+                "start": times[0],
+                "end": times[1],
+                "break_start": times[2],
+                "break_end": times[3],
+                "assignment": times[4]
+            }
+        })
+
+    working_hours_week = round(row_1.iloc[31], 2)
+    week_saldo = round(row_1.iloc[32], 2)
+
+    employee_times.append({
+        "name": employee_name,
+        "working_times": working_times,
+        "additional_times": additional_times,
+        "working_hours_week": working_hours_week,
+        "week_saldo": week_saldo
+    })
