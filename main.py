@@ -3,7 +3,6 @@ from pathlib import Path
 import glob
 import os
 import pandas as pd
-from datetime import datetime
 
 with open("config.yaml", "r") as file:
     config = yaml.safe_load(file)
