@@ -128,3 +128,65 @@ for i in range(0, len(temp_frame), 4):
         "working_hours_week": working_hours_week,
         "week_saldo": week_saldo
     })
+
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from datetime import time
+
+# Deine vorhandene Datenstruktur sollte hier als Variable 'data' übergeben sein
+# Beispiel:
+data = employee_times  # Hier kommt dein vollständiger Dienstplan rein (wie oben gepostet)
+
+# Konfiguration
+day = "Montag"  # Wähle hier den Tag
+start_hour = 6
+end_hour = 18
+
+fig, ax = plt.subplots(figsize=(14, 0.8 * len(data)))
+yticklabels = []
+color_map = {
+    "Blau": "blue", "Grün": "green", "Rot": "red",
+    "Nest Gelb": "gold", "Nest Orange": "darkorange",
+    "Verfügungszeit": "gray", "Elterngespräch": "purple",
+    "Krank": "black", "-": "white"
+}
+legend_patches = {}
+
+def time_to_float(t):
+    return t.hour + t.minute / 60 if isinstance(t, time) else None
+
+for i, person in enumerate(data):
+    y = len(data) - i - 1
+    yticklabels.append(person["name"])
+
+    for block in [person.get("working_times", []), person.get("additional_times", [])]:
+        day_data = next((entry for entry in block if entry["day"] == day), None)
+        if not day_data:
+            continue
+
+        for key in ["entry_1", "entry_2"]:
+            entry = day_data.get(key, {})
+            start = time_to_float(entry.get("start"))
+            end = time_to_float(entry.get("end"))
+            assignment = entry.get("assignment", "-")
+
+            if start is None or end is None or assignment == "-":
+                continue
+
+            width = end - start
+            color = color_map.get(assignment, "lightgray")
+            ax.barh(y, width, left=start, height=0.4, color=color, edgecolor='black')
+
+            if assignment not in legend_patches:
+                legend_patches[assignment] = mpatches.Patch(color=color, label=assignment)
+
+# Achsenformatierung
+ax.set_xlim(start_hour, end_hour)
+ax.set_yticks(range(len(data)))
+ax.set_yticklabels(yticklabels)
+ax.set_xticks(range(start_hour, end_hour + 1))
+ax.grid(axis='x', linestyle='--', linewidth=0.5)
+ax.set_title(f"Dienstplan-Zeitstrahl für {day}", fontsize=14)
+ax.legend(handles=legend_patches.values(), bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.tight_layout()
+plt.show()
