@@ -133,19 +133,23 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from datetime import time, datetime, timedelta
 
-# Deine Datenstruktur
-data = employee_times  # ← hier deine Liste einfügen
-
+data = employee_times
 day = "Montag"
 pdf_filename = f"{output_path}/dienstplan_{day.lower()}.pdf"
 
 fig, ax = plt.subplots(figsize=(14, 0.8 * len(data)))
 yticklabels = []
 color_map = {
-    "Blau": "blue", "Grün": "green", "Rot": "red",
-    "Nest Gelb": "gold", "Nest Orange": "darkorange",
-    "Verfügungszeit": "gray", "Elterngespräch": "purple",
-    "Krank": "black", "-": "white"
+    "Blau": "#aec6cf",
+    "Grün": "#b2d8b2",
+    "Rot": "#f4cccc",
+    "Nest Gelb": "#fff2b2",
+    "Nest Orange": "#ffd8b1",
+    "Übergreifend": "#ffe0b3",
+    "Verfügungszeit": "#d9d9d9",
+    "Elterngespräch": "#d5a6bd",
+    "Krank": "#cccccc",
+    "-": "white"
 }
 legend_patches = {}
 
@@ -155,7 +159,6 @@ def time_to_float(t):
 def format_time(t):
     return t.strftime("%H:%M") if isinstance(t, time) else ""
 
-# 🕓 1. Min/Max Zeit berechnen
 all_times = []
 for person in data:
     for block in [person.get("working_times", []), person.get("additional_times", [])]:
@@ -173,10 +176,9 @@ for person in data:
 start_hour = int(min(all_times)) - 1 if all_times else 6
 end_hour = int(max(all_times)) + 1 if all_times else 21
 
-# 🧱 2. Zeichnen mit mehr Abstand & Uhrzeit-Labels
-y_spacing = 1.5
+y_spacing = 2
 for i, person in enumerate(data):
-    y = len(data) * y_spacing - i * y_spacing - 1  # zentriert
+    y = len(data) * y_spacing - i * y_spacing - 1
     yticklabels.append(person["name"])
 
     for block in [person.get("working_times", []), person.get("additional_times", [])]:
@@ -196,35 +198,27 @@ for i, person in enumerate(data):
                 continue
 
             width = end - start
-            color = color_map.get(assignment, "lightgray")
-            ax.barh(y, width, left=start, height=0.9, color=color, edgecolor='black')
+            color = color_map.get(assignment, "#e6e6e6")
+            ax.barh(y, width, left=start, height=0.8, color=color, edgecolor='black')
 
-            # Formatierte Zeiten
             start_text = format_time(start_obj)
             end_text = format_time(end_obj)
 
-            # Mindestabstand in Stunden, unterhalb dessen der Text versetzt wird
             min_block_duration = 0.15 # entspricht 9 Minuten
             block_width = end - start
 
-            # Basis-Textposition
             y_base = y - 0.55
 
-            # Text anzeigen, mit dynamischer Y-Position, falls Block zu kurz
-            ax.text(start, y_base, start_text, fontsize=5, ha='center', va='top', color='black')
+            ax.text(start, y_base, start_text, fontsize=5, ha="center", va="top", color="black")
 
             if block_width < min_block_duration:
-                # Endzeit leicht versetzt, um Überlappung zu vermeiden
-                ax.text(end, y_base - 0.3, end_text, fontsize=5, ha='center', va='top', color='black')
+                ax.text(end, y_base - 0.3, end_text, fontsize=5, ha="center", va="top", color="black")
             else:
-                # Normale Position, gleiche Höhe wie Startzeit
-                ax.text(end, y_base, end_text, fontsize=5, ha='center', va='top', color='black')
+                ax.text(end, y_base, end_text, fontsize=5, ha="center", va="top", color="black")
 
-            # Für Legende
             if assignment not in legend_patches:
                 legend_patches[assignment] = mpatches.Patch(color=color, label=assignment)
 
-# 🕒 3. Achsen & Layout
 ax.set_xlim(start_hour, end_hour)
 ax.set_yticks([len(data) * y_spacing - i * y_spacing - 1 for i in range(len(data))])
 ax.set_yticklabels(yticklabels)
@@ -234,12 +228,16 @@ xtick_labels = [(datetime(2023, 1, 1, h, 0)).strftime("%H:%M") for h in xticks]
 ax.set_xticks(xticks)
 ax.set_xticklabels(xtick_labels)
 
-ax.grid(axis='x', linestyle='--', linewidth=0.5)
+padding_y = 0.5
+ylim_lower = -padding_y
+ylim_upper = len(data) * y_spacing + padding_y
+ax.set_ylim(ylim_lower, ylim_upper)
+
+ax.grid(axis="x", linestyle="--", linewidth=0.5)
 ax.set_title(f"Dienstplan für {day} den {start_date}", fontsize=14)
-ax.legend(handles=legend_patches.values(), bbox_to_anchor=(1.05, 1), loc='upper left')
+ax.legend(handles=legend_patches.values(), bbox_to_anchor=(1.05, 1), loc="upper left")
 
 plt.tight_layout()
 
-# 💾 Speichern
-plt.savefig(pdf_filename, format='pdf')
+plt.savefig(pdf_filename, format="pdf")
 print(f"✅ PDF gespeichert unter: {pdf_filename}")
