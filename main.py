@@ -131,16 +131,13 @@ for i in range(0, len(temp_frame), 4):
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from datetime import time
+from datetime import time, datetime, timedelta
 
-# Deine vorhandene Datenstruktur sollte hier als Variable 'data' übergeben sein
-# Beispiel:
-data = employee_times  # Hier kommt dein vollständiger Dienstplan rein (wie oben gepostet)
+# Deine Datenstruktur
+data = employee_times  # ← hier deine Liste einfügen
 
-# Konfiguration
-day = "Montag"  # Wähle hier den Tag
-start_hour = 6
-end_hour = 18
+day = "Montag"
+pdf_filename = f"{output_path}/dienstplan_{day.lower()}.pdf"
 
 fig, ax = plt.subplots(figsize=(14, 0.8 * len(data)))
 yticklabels = []
@@ -155,8 +152,31 @@ legend_patches = {}
 def time_to_float(t):
     return t.hour + t.minute / 60 if isinstance(t, time) else None
 
+def format_time(t):
+    return t.strftime("%H:%M") if isinstance(t, time) else ""
+
+# 🕓 1. Min/Max Zeit berechnen
+all_times = []
+for person in data:
+    for block in [person.get("working_times", []), person.get("additional_times", [])]:
+        day_data = next((entry for entry in block if entry["day"] == day), None)
+        if not day_data:
+            continue
+        for key in ["entry_1", "entry_2"]:
+            entry = day_data.get(key, {})
+            start = entry.get("start")
+            end = entry.get("end")
+            if isinstance(start, time) and isinstance(end, time):
+                all_times.append(time_to_float(start))
+                all_times.append(time_to_float(end))
+
+start_hour = int(min(all_times)) - 1 if all_times else 6
+end_hour = int(max(all_times)) + 1 if all_times else 21
+
+# 🧱 2. Zeichnen mit mehr Abstand & Uhrzeit-Labels
+y_spacing = 1.5
 for i, person in enumerate(data):
-    y = len(data) - i - 1
+    y = len(data) * y_spacing - i * y_spacing - 1  # zentriert
     yticklabels.append(person["name"])
 
     for block in [person.get("working_times", []), person.get("additional_times", [])]:
@@ -168,6 +188,8 @@ for i, person in enumerate(data):
             entry = day_data.get(key, {})
             start = time_to_float(entry.get("start"))
             end = time_to_float(entry.get("end"))
+            start_obj = entry.get("start")
+            end_obj = entry.get("end")
             assignment = entry.get("assignment", "-")
 
             if start is None or end is None or assignment == "-":
@@ -175,18 +197,49 @@ for i, person in enumerate(data):
 
             width = end - start
             color = color_map.get(assignment, "lightgray")
-            ax.barh(y, width, left=start, height=0.4, color=color, edgecolor='black')
+            ax.barh(y, width, left=start, height=0.9, color=color, edgecolor='black')
 
+            # Formatierte Zeiten
+            start_text = format_time(start_obj)
+            end_text = format_time(end_obj)
+
+            # Mindestabstand in Stunden, unterhalb dessen der Text versetzt wird
+            min_block_duration = 0.15 # entspricht 9 Minuten
+            block_width = end - start
+
+            # Basis-Textposition
+            y_base = y - 0.55
+
+            # Text anzeigen, mit dynamischer Y-Position, falls Block zu kurz
+            ax.text(start, y_base, start_text, fontsize=5, ha='center', va='top', color='black')
+
+            if block_width < min_block_duration:
+                # Endzeit leicht versetzt, um Überlappung zu vermeiden
+                ax.text(end, y_base - 0.3, end_text, fontsize=5, ha='center', va='top', color='black')
+            else:
+                # Normale Position, gleiche Höhe wie Startzeit
+                ax.text(end, y_base, end_text, fontsize=5, ha='center', va='top', color='black')
+
+            # Für Legende
             if assignment not in legend_patches:
                 legend_patches[assignment] = mpatches.Patch(color=color, label=assignment)
 
-# Achsenformatierung
+# 🕒 3. Achsen & Layout
 ax.set_xlim(start_hour, end_hour)
-ax.set_yticks(range(len(data)))
+ax.set_yticks([len(data) * y_spacing - i * y_spacing - 1 for i in range(len(data))])
 ax.set_yticklabels(yticklabels)
-ax.set_xticks(range(start_hour, end_hour + 1))
+
+xticks = list(range(start_hour, end_hour + 1))
+xtick_labels = [(datetime(2023, 1, 1, h, 0)).strftime("%H:%M") for h in xticks]
+ax.set_xticks(xticks)
+ax.set_xticklabels(xtick_labels)
+
 ax.grid(axis='x', linestyle='--', linewidth=0.5)
-ax.set_title(f"Dienstplan-Zeitstrahl für {day}", fontsize=14)
+ax.set_title(f"Dienstplan für {day} den {start_date}", fontsize=14)
 ax.legend(handles=legend_patches.values(), bbox_to_anchor=(1.05, 1), loc='upper left')
+
 plt.tight_layout()
-plt.show()
+
+# 💾 Speichern
+plt.savefig(pdf_filename, format='pdf')
+print(f"✅ PDF gespeichert unter: {pdf_filename}")
