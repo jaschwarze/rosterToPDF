@@ -145,7 +145,7 @@ color_map = {
     "Rot": "#f4cccc",
     "Nest Gelb": "#fff2b2",
     "Nest Orange": "#ffd8b1",
-    "Übergreifend": "#ffe0b3",
+    "Übergreifend": "#ffb366",
     "Verfügungszeit": "#d9d9d9",
     "Elterngespräch": "#d5a6bd",
     "Krank": "#cccccc",
