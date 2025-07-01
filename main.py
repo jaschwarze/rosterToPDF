@@ -199,7 +199,7 @@ for i, person in enumerate(data):
 
             width = end - start
             color = color_map.get(assignment, "#e6e6e6")
-            ax.barh(y, width, left=start, height=0.8, color=color, edgecolor='black')
+            ax.barh(y, width, left=start, height=0.8, color=color, edgecolor="black")
 
             start_text = format_time(start_obj)
             end_text = format_time(end_obj)
@@ -208,7 +208,6 @@ for i, person in enumerate(data):
             block_width = end - start
 
             y_base = y - 0.55
-
             ax.text(start, y_base, start_text, fontsize=5, ha="center", va="top", color="black")
 
             if block_width < min_block_duration:
@@ -233,7 +232,7 @@ ylim_lower = -padding_y
 ylim_upper = len(data) * y_spacing + padding_y
 ax.set_ylim(ylim_lower, ylim_upper)
 
-ax.grid(axis="x", linestyle="--", linewidth=0.5)
+ax.grid(axis="x", linestyle="--", linewidth=0.5, alpha=0.4)
 ax.set_title(f"Dienstplan für {day} den {start_date}", fontsize=14)
 ax.legend(handles=legend_patches.values(), bbox_to_anchor=(1.05, 1), loc="upper left")
 
