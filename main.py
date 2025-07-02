@@ -203,10 +203,15 @@ for i, person in enumerate(data):
             if block_type == "working":
                 ax.barh(y, width, left=start, height=0.8, color=color, edgecolor="black")
 
+
+
             elif block_type == "additional":
+
                 ax.barh(y, width, left=start, height=0.8,
-                        color=color, edgecolor=color, alpha=0.8,
-                        hatch="////", linewidth=0.5)
+
+                        color=color, edgecolor="black", alpha=0.3,
+
+                        hatch="////", linewidth=0.6)
 
             start_text = format_time(start_obj)
             end_text = format_time(end_obj)
