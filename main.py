@@ -194,9 +194,23 @@ for i, person in enumerate(data):
             if block_type == "working":
                 ax.barh(y, width, left=start, height=0.8, color=color, edgecolor="black")
 
+                legend_key = f"{assignment}"
+                if legend_key not in legend_patches:
+                    legend_patches[legend_key] = mpatches.Patch(color=color, label=legend_key)
+
             elif block_type == "additional":
                 ax.barh(y, width, left=start, height=0.8, color=color, edgecolor="black", alpha=0.4, linewidth=0.8, linestyle="--")
-                ax.text(start + width / 2, y, short_label,ha="center", va="center", fontsize=6, color="black", alpha=0.8)
+                ax.text(start + width / 2, y, short_label, ha="center", va="center", fontsize=6, color="black", alpha=0.8)
+
+                legend_key = f"{assignment}_additional"
+                if legend_key not in legend_patches:
+                    legend_patches[legend_key] = mpatches.Patch(
+                        color=color,
+                        alpha=0.4,
+                        label=f"{assignment} ({short_label})",
+                        linestyle="--",
+                        linewidth=0.8
+                    )
 
             start_text = format_time(start_obj)
             end_text = format_time(end_obj)
@@ -209,9 +223,6 @@ for i, person in enumerate(data):
                 ax.text(end, y_base - 0.3, end_text, fontsize=5, ha="center", va="top", color="black")
             else:
                 ax.text(end, y_base, end_text, fontsize=5, ha="center", va="top", color="black")
-
-            if assignment not in legend_patches:
-                legend_patches[assignment] = mpatches.Patch(color=color, label=assignment)
 
 ax.set_xlim(start_hour, end_hour)
 ax.set_yticks([len(data) * y_spacing - i * y_spacing - 1 for i in range(len(data))])
@@ -229,7 +240,49 @@ ax.set_ylim(ylim_lower, ylim_upper)
 
 ax.grid(axis="x", linestyle="--", linewidth=0.5, alpha=0.3)
 ax.set_title(f"KW {calendar_week}: Dienstplan für {day}, den {start_date}", fontsize=14)
-ax.legend(handles=legend_patches.values(), bbox_to_anchor=(1.05, 1), loc="upper left")
+
+normal_items = []
+additional_items = []
+
+for key, patch in legend_patches.items():
+    if key.endswith("_additional"):
+        additional_items.append(patch)
+    else:
+        normal_items.append(patch)
+
+legend_handles = []
+legend_labels = []
+
+if normal_items:
+    legend_handles.append(mpatches.Patch(color="none", label=""))
+    legend_labels.append("Zuweisungen:")
+
+    for item in normal_items:
+        legend_handles.append(item)
+        legend_labels.append(f"  {item.get_label()}")
+
+if additional_items:
+    legend_handles.append(mpatches.Patch(color="none", label=""))
+    legend_labels.append("")
+
+    legend_handles.append(mpatches.Patch(color="none", label=""))
+    legend_labels.append("Zusätze:")
+
+    for item in additional_items:
+        legend_handles.append(item)
+        legend_labels.append(f"  {item.get_label()}")
+
+legend = ax.legend(handles=legend_handles, labels=legend_labels, bbox_to_anchor=(1.05, 1), loc="upper left")
+
+for i, text in enumerate(legend.get_texts()):
+    label = text.get_text()
+    if label.endswith(":") and not label.startswith("  "):
+        text.set_fontweight("bold")
+        text.set_fontsize(10)
+    elif label.startswith("  "):
+        text.set_fontsize(9)
+    elif label == "":
+        text.set_fontsize(4)
 
 plt.tight_layout()
 
