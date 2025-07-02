@@ -132,7 +132,7 @@ for i in range(0, len(temp_frame), 4):
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from datetime import time, datetime, timedelta
+from datetime import time, datetime
 
 data = employee_times
 day = "Montag"
