@@ -238,7 +238,7 @@ ylim_upper = len(data) * y_spacing + padding_y
 ax.set_ylim(ylim_lower, ylim_upper)
 
 ax.grid(axis="x", linestyle="--", linewidth=0.5, alpha=0.3)
-ax.set_title(f"Dienstplan {day} {start_date}", fontsize=14)
+ax.set_title(f"KW {calendar_week}: Dienstplan für {day}, den {start_date}", fontsize=14)
 ax.legend(handles=legend_patches.values(), bbox_to_anchor=(1.05, 1), loc="upper left")
 
 plt.tight_layout()
