@@ -1,3 +1,35 @@
 input_path: "./input"
 output_path: "./output"
 archive_path: "./archive"
+
+assignments:
+  Blau:
+    color: "#aec6cf"
+    abbr: "BL"
+  Grün:
+    color: "#b2d8b2"
+    abbr: "GR"
+  Rot:
+    color: "#f4cccc"
+    abbr: "RT"
+  Nest Gelb:
+    color: "#fff2b2"
+    abbr: "NG"
+  Nest Orange:
+    color: "#ffd8b1"
+    abbr: "NO"
+  Übergreifend:
+    color: "#ffb366"
+    abbr: "ÜG"
+  Verfügungszeit:
+    color: "#d9d9d9"
+    abbr: "VZ"
+  Elterngespräch:
+    color: "#d5a6bd"
+    abbr: "EG"
+  Krank:
+    color: "#cccccc"
+    abbr: "KR"
+  "-":
+    color: "white"
+    abbr: ""

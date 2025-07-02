@@ -10,6 +10,7 @@ with open("config.yaml", "r") as file:
 input_path = config["input_path"]
 output_path = config["output_path"]
 archive_path = config["archive_path"]
+assignment_map = config.get("assignments", {})
 
 for path in [Path(output_path), Path(archive_path)]:
     if not path.exists():
@@ -139,18 +140,6 @@ pdf_filename = f"{output_path}/dienstplan_{day.lower()}.pdf"
 
 fig, ax = plt.subplots(figsize=(14, 0.8 * len(data)))
 yticklabels = []
-color_map = {
-    "Blau": "#aec6cf",
-    "Grün": "#b2d8b2",
-    "Rot": "#f4cccc",
-    "Nest Gelb": "#fff2b2",
-    "Nest Orange": "#ffd8b1",
-    "Übergreifend": "#ffb366",
-    "Verfügungszeit": "#d9d9d9",
-    "Elterngespräch": "#d5a6bd",
-    "Krank": "#cccccc",
-    "-": "white"
-}
 legend_patches = {}
 
 def time_to_float(t):
@@ -198,20 +187,16 @@ for i, person in enumerate(data):
                 continue
 
             width = end - start
-            color = color_map.get(assignment, "#e6e6e6")
+            assignment_entry = assignment_map.get(assignment, {"color": "#e6e6e6", "abbr": "?"})
+            color = assignment_entry["color"]
+            short_label = assignment_entry["abbr"]
 
             if block_type == "working":
                 ax.barh(y, width, left=start, height=0.8, color=color, edgecolor="black")
 
-
-
             elif block_type == "additional":
-
-                ax.barh(y, width, left=start, height=0.8,
-
-                        color=color, edgecolor="black", alpha=0.3,
-
-                        hatch="////", linewidth=0.6)
+                ax.barh(y, width, left=start, height=0.8, color=color, edgecolor="black", alpha=0.4, linewidth=0.8, linestyle="--")
+                ax.text(start + width / 2, y, short_label,ha="center", va="center", fontsize=6, color="black", alpha=0.8)
 
             start_text = format_time(start_obj)
             end_text = format_time(end_obj)
@@ -249,4 +234,4 @@ ax.legend(handles=legend_patches.values(), bbox_to_anchor=(1.05, 1), loc="upper 
 plt.tight_layout()
 
 plt.savefig(pdf_filename, format="pdf")
-print(f"✅ PDF gespeichert unter: {pdf_filename}")
+print(f"PDF gespeichert unter: {pdf_filename}")
