@@ -1,7 +1,6 @@
 input_path: "./input"
 output_path: "./output"
 archive_path: "./archive"
-
 assignments:
   Blau:
     color: "#aec6cf"
@@ -33,3 +32,4 @@ assignments:
   "-":
     color: "white"
     abbr: ""
+cols_per_day: 6
