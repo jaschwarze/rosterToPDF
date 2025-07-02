@@ -44,8 +44,8 @@ possible_groups = possible_assignments[:6]
 year = planning_data[1][0]
 calendar_week = planning_data[1][1]
 
-start_date = planning_data[1][3].strftime("%Y-%m-%d")
-end_date = planning_data[1][5].strftime("%Y-%m-%d")
+start_date = planning_data[1][3].strftime("%d.%m.%Y")
+end_date = planning_data[1][5].strftime("%d.%m.%Y")
 
 planning_data_dict = {
     row[0]: (row[1], row[2], row[3], row[4], row[5])
@@ -181,8 +181,8 @@ for i, person in enumerate(data):
     y = len(data) * y_spacing - i * y_spacing - 1
     yticklabels.append(person["name"])
 
-    for block in [person.get("working_times", []), person.get("additional_times", [])]:
-        day_data = next((entry for entry in block if entry["day"] == day), None)
+    for block_type, block_data in [("working", person.get("working_times", [])), ("additional", person.get("additional_times", []))]:
+        day_data = next((entry for entry in block_data if entry["day"] == day), None)
         if not day_data:
             continue
 
@@ -199,14 +199,19 @@ for i, person in enumerate(data):
 
             width = end - start
             color = color_map.get(assignment, "#e6e6e6")
-            ax.barh(y, width, left=start, height=0.8, color=color, edgecolor="black")
+
+            if block_type == "working":
+                ax.barh(y, width, left=start, height=0.8, color=color, edgecolor="black")
+
+            elif block_type == "additional":
+                ax.barh(y, width, left=start, height=0.8,
+                        color=color, edgecolor=color, alpha=0.8,
+                        hatch="////", linewidth=0.5)
 
             start_text = format_time(start_obj)
             end_text = format_time(end_obj)
-
-            min_block_duration = 0.15 # entspricht 9 Minuten
+            min_block_duration = 0.15  # entspricht 9 Minuten
             block_width = end - start
-
             y_base = y - 0.55
             ax.text(start, y_base, start_text, fontsize=5, ha="center", va="top", color="black")
 
@@ -233,7 +238,7 @@ ylim_upper = len(data) * y_spacing + padding_y
 ax.set_ylim(ylim_lower, ylim_upper)
 
 ax.grid(axis="x", linestyle="--", linewidth=0.5, alpha=0.3)
-ax.set_title(f"Dienstplan für {day} den {start_date}", fontsize=14)
+ax.set_title(f"Dienstplan {day} {start_date}", fontsize=14)
 ax.legend(handles=legend_patches.values(), bbox_to_anchor=(1.05, 1), loc="upper left")
 
 plt.tight_layout()
