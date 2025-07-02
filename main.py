@@ -3,6 +3,9 @@ from pathlib import Path
 import glob
 import os
 import pandas as pd
+from pdf import create_employee_view
+from parser import parse_employee_times
+
 
 with open("config.yaml", "r") as file:
     config = yaml.safe_load(file)
@@ -11,6 +14,8 @@ input_path = config["input_path"]
 output_path = config["output_path"]
 archive_path = config["archive_path"]
 assignment_map = config.get("assignments", {})
+cols_per_day = config.get("cols_per_day", 6)
+days_of_week = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"]
 
 for path in [Path(output_path), Path(archive_path)]:
     if not path.exists():
@@ -44,7 +49,6 @@ possible_groups = possible_assignments[:6]
 
 year = planning_data[1][0]
 calendar_week = planning_data[1][1]
-
 start_date = planning_data[1][3].strftime("%d.%m.%Y")
 end_date = planning_data[1][5].strftime("%d.%m.%Y")
 
@@ -53,238 +57,7 @@ planning_data_dict = {
     for row in planning_data.itertuples(index=True)
 }
 
-days = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"]
-cols_per_day = 6
-temp_frame = planning_data.iloc[12:]
+planning_frame = planning_data.iloc[12:]
+employee_times = parse_employee_times(planning_frame, cols_per_day, days_of_week)
 
-employee_times = []
-
-for i in range(0, len(temp_frame), 4):
-    row_1 = temp_frame.iloc[i]
-    row_2 = temp_frame.iloc[i + 1]
-    row_3 = temp_frame.iloc[i + 2]
-    row_4 = temp_frame.iloc[i + 3]
-
-    employee_name = row_1[0]
-    working_times = []
-
-    for day_idx, day in enumerate(days):
-        start = (day_idx * cols_per_day) + 2
-        end = (start + cols_per_day) - 1
-
-        times_1 = row_1.iloc[start:end].fillna("-").tolist()
-        times_2 = row_2.iloc[start:end].fillna("-").tolist()
-
-        working_times.append({
-            "day": day,
-            "entry_1": {
-                "start": times_1[0],
-                "end": times_1[1],
-                "break_start": times_1[2],
-                "break_end": times_1[3],
-                "assignment": times_1[4]
-            },
-            "entry_2": {
-                "start": times_2[0],
-                "end": times_2[1],
-                "break_start": times_2[2],
-                "break_end": times_2[3],
-                "assignment": times_2[4]
-            }
-        })
-
-    additional_times = []
-    for day_idx, day in enumerate(days):
-        start = (day_idx * cols_per_day) + 2
-        end = (start + cols_per_day) - 1
-
-        times_1 = row_3.iloc[start:end].fillna("-").tolist()
-        times_2 = row_4.iloc[start:end].fillna("-").tolist()
-
-        additional_times.append({
-            "day": day,
-            "entry_1": {
-                "start": times_1[0],
-                "end": times_1[1],
-                "break_start": times_1[2],
-                "break_end": times_1[3],
-                "assignment": times_1[4]
-            },
-            "entry_2": {
-                "start": times_2[0],
-                "end": times_2[1],
-                "break_start": times_2[2],
-                "break_end": times_2[3],
-                "assignment": times_2[4]
-            }
-        })
-
-    working_hours_week = round(row_1.iloc[32], 2)
-    week_saldo = round(row_1.iloc[33], 2)
-
-    employee_times.append({
-        "name": employee_name,
-        "working_times": working_times,
-        "additional_times": additional_times,
-        "working_hours_week": working_hours_week,
-        "week_saldo": week_saldo
-    })
-
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from datetime import time, datetime
-
-data = employee_times
-day = "Montag"
-pdf_filename = f"{output_path}/dienstplan_{day.lower()}.pdf"
-
-fig, ax = plt.subplots(figsize=(14, 0.8 * len(data)))
-yticklabels = []
-legend_patches = {}
-
-def time_to_float(t):
-    return t.hour + t.minute / 60 if isinstance(t, time) else None
-
-def format_time(t):
-    return t.strftime("%H:%M") if isinstance(t, time) else ""
-
-all_times = []
-for person in data:
-    for block in [person.get("working_times", []), person.get("additional_times", [])]:
-        day_data = next((entry for entry in block if entry["day"] == day), None)
-        if not day_data:
-            continue
-        for key in ["entry_1", "entry_2"]:
-            entry = day_data.get(key, {})
-            start = entry.get("start")
-            end = entry.get("end")
-            if isinstance(start, time) and isinstance(end, time):
-                all_times.append(time_to_float(start))
-                all_times.append(time_to_float(end))
-
-start_hour = int(min(all_times)) - 1 if all_times else 6
-end_hour = int(max(all_times)) + 1 if all_times else 21
-
-y_spacing = 2
-for i, person in enumerate(data):
-    y = len(data) * y_spacing - i * y_spacing - 1
-    yticklabels.append(person["name"])
-
-    for block_type, block_data in [("working", person.get("working_times", [])), ("additional", person.get("additional_times", []))]:
-        day_data = next((entry for entry in block_data if entry["day"] == day), None)
-        if not day_data:
-            continue
-
-        for key in ["entry_1", "entry_2"]:
-            entry = day_data.get(key, {})
-            start = time_to_float(entry.get("start"))
-            end = time_to_float(entry.get("end"))
-            start_obj = entry.get("start")
-            end_obj = entry.get("end")
-            assignment = entry.get("assignment", "-")
-
-            if start is None or end is None or assignment == "-":
-                continue
-
-            width = end - start
-            assignment_entry = assignment_map.get(assignment, {"color": "#e6e6e6", "abbr": "?"})
-            color = assignment_entry["color"]
-            short_label = assignment_entry["abbr"]
-
-            if block_type == "working":
-                ax.barh(y, width, left=start, height=0.8, color=color, edgecolor="black")
-
-                legend_key = f"{assignment}"
-                if legend_key not in legend_patches:
-                    legend_patches[legend_key] = mpatches.Patch(color=color, label=legend_key)
-
-            elif block_type == "additional":
-                ax.barh(y, width, left=start, height=0.8, color=color, edgecolor="black", alpha=0.4, linewidth=0.8, linestyle="--")
-                ax.text(start + width / 2, y, short_label, ha="center", va="center", fontsize=6, color="black", alpha=0.8)
-
-                legend_key = f"{assignment}_additional"
-                if legend_key not in legend_patches:
-                    legend_patches[legend_key] = mpatches.Patch(
-                        color=color,
-                        alpha=0.4,
-                        label=f"{assignment} ({short_label})",
-                        linestyle="--",
-                        linewidth=0.8
-                    )
-
-            start_text = format_time(start_obj)
-            end_text = format_time(end_obj)
-            min_block_duration = 0.15  # entspricht 9 Minuten
-            block_width = end - start
-            y_base = y - 0.55
-            ax.text(start, y_base, start_text, fontsize=5, ha="center", va="top", color="black")
-
-            if block_width < min_block_duration:
-                ax.text(end, y_base - 0.3, end_text, fontsize=5, ha="center", va="top", color="black")
-            else:
-                ax.text(end, y_base, end_text, fontsize=5, ha="center", va="top", color="black")
-
-ax.set_xlim(start_hour, end_hour)
-ax.set_yticks([len(data) * y_spacing - i * y_spacing - 1 for i in range(len(data))])
-ax.set_yticklabels(yticklabels)
-
-xticks = list(range(start_hour, end_hour + 1))
-xtick_labels = [(datetime(2023, 1, 1, h, 0)).strftime("%H:%M") for h in xticks]
-ax.set_xticks(xticks)
-ax.set_xticklabels(xtick_labels)
-
-padding_y = 0.5
-ylim_lower = -padding_y
-ylim_upper = len(data) * y_spacing + padding_y
-ax.set_ylim(ylim_lower, ylim_upper)
-
-ax.grid(axis="x", linestyle="--", linewidth=0.5, alpha=0.3)
-ax.set_title(f"KW {calendar_week}: Dienstplan für {day}, den {start_date}", fontsize=14)
-
-normal_items = []
-additional_items = []
-
-for key, patch in legend_patches.items():
-    if key.endswith("_additional"):
-        additional_items.append(patch)
-    else:
-        normal_items.append(patch)
-
-legend_handles = []
-legend_labels = []
-
-if normal_items:
-    legend_handles.append(mpatches.Patch(color="none", label=""))
-    legend_labels.append("Zuweisungen:")
-
-    for item in normal_items:
-        legend_handles.append(item)
-        legend_labels.append(f"  {item.get_label()}")
-
-if additional_items:
-    legend_handles.append(mpatches.Patch(color="none", label=""))
-    legend_labels.append("")
-
-    legend_handles.append(mpatches.Patch(color="none", label=""))
-    legend_labels.append("Zusätze:")
-
-    for item in additional_items:
-        legend_handles.append(item)
-        legend_labels.append(f"  {item.get_label()}")
-
-legend = ax.legend(handles=legend_handles, labels=legend_labels, bbox_to_anchor=(1.05, 1), loc="upper left")
-
-for i, text in enumerate(legend.get_texts()):
-    label = text.get_text()
-    if label.endswith(":") and not label.startswith("  "):
-        text.set_fontweight("bold")
-        text.set_fontsize(10)
-    elif label.startswith("  "):
-        text.set_fontsize(9)
-    elif label == "":
-        text.set_fontsize(4)
-
-plt.tight_layout()
-
-plt.savefig(pdf_filename, format="pdf")
-print(f"PDF gespeichert unter: {pdf_filename}")
+create_employee_view(employee_times, output_path, assignment_map, year, calendar_week, start_date, days_of_week)
