@@ -18,6 +18,15 @@ def _time_to_float(t):
 def _format_time(t):
     return t.strftime("%H:%M") if isinstance(t, time) else ""
 
+def _draw_time_labels(ax, x_start, x_end, y_base, start_label, end_label, min_block_duration):
+    block_width = x_end - x_start
+    if block_width < min_block_duration:
+        ax.text(x_start, y_base, start_label, fontsize=5, ha="center", va="top", color="black")
+        ax.text(x_end, y_base - 0.3, end_label, fontsize=5, ha="center", va="top", color="black")
+    else:
+        ax.text(x_start, y_base, start_label, fontsize=5, ha="center", va="top", color="black")
+        ax.text(x_end, y_base, end_label, fontsize=5, ha="center", va="top", color="black")
+
 def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week, date):
     fig, ax = plt.subplots(figsize=(14, 0.8 * len(data)))
     yticklabels = []
@@ -58,8 +67,10 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
                 start_obj = entry.get("start")
                 end_obj = entry.get("end")
                 assignment = entry.get("assignment", "-")
+                break_start = _time_to_float(entry.get("break_start"))
+                break_end = _time_to_float(entry.get("break_end"))
 
-                if start is None or end is None or assignment == "-":
+                if start is None or end is None or assignment == "-" or start > end:
                     continue
 
                 width = end - start
@@ -77,7 +88,7 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
                 elif block_type == "additional":
                     ax.barh(y, width, left=start, height=0.8, color=color, edgecolor="black", alpha=0.4, linewidth=0.8,
                             linestyle="--")
-                    ax.text(start + width / 2, y, short_label, ha="center", va="center", fontsize=6, color="black",
+                    ax.text(start + width / 2, y, short_label, ha="center", va="center", fontsize=5, color="black",
                             alpha=0.8)
 
                     legend_key = f"{assignment}_additional"
@@ -92,15 +103,26 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
 
                 start_text = _format_time(start_obj)
                 end_text = _format_time(end_obj)
-                min_block_duration = 0.15  # entspricht 9 Minuten
-                block_width = end - start
                 y_base = y - 0.55
-                ax.text(start, y_base, start_text, fontsize=5, ha="center", va="top", color="black")
+                _draw_time_labels(ax, start, end, y_base, start_text, end_text, 0.15)
 
-                if block_width < min_block_duration:
-                    ax.text(end, y_base - 0.3, end_text, fontsize=5, ha="center", va="top", color="black")
-                else:
-                    ax.text(end, y_base, end_text, fontsize=5, ha="center", va="top", color="black")
+                if break_start is not None and break_end is not None and break_start < break_end:
+                    break_width = break_end - break_start
+                    ax.barh(
+                        y, break_width, left=break_start,
+                        height=0.8,
+                        color="#eeeeee",
+                        hatch="////",
+                        edgecolor="black",
+                        alpha=0.6,
+                        linewidth=0.2,
+                        zorder=3
+                    )
+                    ax.text(
+                        break_start + break_width / 2, y, "Pause",
+                        ha="center", va="center",
+                        fontsize=4, zorder=4
+                    )
 
     ax.set_xlim(start_hour, end_hour)
     ax.set_yticks([len(data) * y_spacing - i * y_spacing - 1 for i in range(len(data))])
