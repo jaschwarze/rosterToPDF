@@ -49,7 +49,7 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
     start_hour = int(min(all_times)) - 1 if all_times else 6
     end_hour = int(max(all_times)) + 1 if all_times else 21
 
-    y_spacing = 2
+    y_spacing = 2.5
     for i, person in enumerate(data):
         y = len(data) * y_spacing - i * y_spacing - 1
         yticklabels.append(person["name"])
@@ -70,13 +70,13 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
                 break_start = _time_to_float(entry.get("break_start"))
                 break_end = _time_to_float(entry.get("break_end"))
 
-                if start is None or end is None or assignment == "-" or start > end:
+                if start is None or end is None or assignment == "-" or start > end or start == "-" or end == "-":
                     continue
 
                 width = end - start
-                assignment_entry = assignment_map.get(assignment, {"color": "#e6e6e6", "abbr": "?"})
+                assignment_entry = assignment_map.get(assignment, {"color": "#e6e6e6", "abbreviation": "?"})
                 color = assignment_entry["color"]
-                short_label = assignment_entry["abbr"]
+                short_label = assignment_entry["abbreviation"]
 
                 if block_type == "working":
                     ax.barh(y, width, left=start, height=0.8, color=color, edgecolor="black")
@@ -139,7 +139,7 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
     ax.set_ylim(ylim_lower, ylim_upper)
 
     ax.grid(axis="x", linestyle="--", linewidth=0.5, alpha=0.3)
-    ax.set_title(f"Dienstplan für {day}, den {date}", fontsize=14)
+    ax.set_title(f"Dienstplan für {day}, den {date} in der KW {calendar_week}", fontsize=14)
 
     normal_items = []
     additional_items = []

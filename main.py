@@ -6,7 +6,6 @@ import pandas as pd
 from pdf import create_employee_view
 from parser import parse_employee_times
 
-
 with open("config.yaml", "r") as file:
     config = yaml.safe_load(file)
 
@@ -29,7 +28,7 @@ if len(excel_files) != 1:
 
 excel_file_path = excel_files[0]
 
-employee_data = pd.read_excel(excel_file_path, sheet_name="Mitarbeiterliste", skiprows=2, header=None, usecols="A:C, E")
+employee_data = pd.read_excel(excel_file_path, sheet_name="Mitarbeiterliste", skiprows=2, header=None, usecols="A:C, E:G")
 special_dates_data = pd.read_excel(excel_file_path, sheet_name="Sondertermine", skiprows=2, header=None)
 planning_data = pd.read_excel(excel_file_path, sheet_name="Dienstplanung", header=None)
 
@@ -43,12 +42,19 @@ special_dates_dict = {
     for row in special_dates_data.itertuples(index=True)
 }
 
-possible_assignments = employee_data[employee_data[4].notna()][4].tolist()
-possible_groups = possible_assignments[:6]
+possible_assignments = {}
+for row in employee_data.itertuples(index=False):
+    if pd.notna(row[3]):
+        assignment = row[3]
+        abbreviation = row[4] if pd.notna(row[4]) else ""
+        color_code = row[5] if pd.notna(row[5]) else ""
 
+        possible_assignments[assignment] = {
+            "abbreviation": abbreviation,
+            "color": color_code
+        }
 
-print(possible_groups)
-print(possible_assignments)
+possible_groups = list(possible_assignments.keys())[:6]
 
 year = planning_data[1][0]
 calendar_week = planning_data[1][1]
@@ -63,4 +69,4 @@ planning_data_dict = {
 planning_frame = planning_data.iloc[12:]
 employee_times = parse_employee_times(planning_frame, cols_per_day, days_of_week)
 
-create_employee_view(employee_times, output_path, assignment_map, year, calendar_week, start_date, days_of_week)
+create_employee_view(employee_times, output_path, possible_assignments, year, calendar_week, start_date, days_of_week)
