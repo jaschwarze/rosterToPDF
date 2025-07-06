@@ -126,10 +126,10 @@ def _draw_time_labels_with_lines(ax, labels, y_base, base_offset=0.3, level_offs
         label_y = y_base - base_offset - (y_level * level_offset)
 
         ax.plot([x, x], [y_base - 0.1, label_y + 0.05],
-                color="black", alpha=0.5, linestyle='--', linewidth=0.5, zorder=1)
+                color="black", alpha=0.5, linestyle="--", linewidth=0.5, zorder=1)
 
         ax.text(x, label_y, text, fontsize=5, ha="center", va="top",
-                color="black", alpha=1.0, weight='normal', zorder=2)
+                color="black", alpha=1.0, weight="normal", zorder=2)
 
 
 def _calculate_dynamic_spacing(filtered_data, day):
@@ -177,7 +177,7 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
     if not filtered_data:
         return
 
-    fig, ax = plt.subplots(figsize=(14, 0.6 * len(filtered_data)))
+    fig, ax = plt.subplots(figsize=(14, 0.7 * len(filtered_data)))
     yticklabels = []
     legend_patches = {}
 
@@ -235,34 +235,11 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
                 color = assignment_entry["color"]
                 short_label = assignment_entry["abbreviation"]
 
-                if block_type == "working":
-                    ax.barh(y, width, left=start, height=block_height, color=color, edgecolor="black")
-                    legend_key = f"{assignment}"
-                    if legend_key not in legend_patches:
-                        legend_patches[legend_key] = mpatches.Patch(color=color, label=legend_key)
-
-                elif block_type == "additional":
-                    ax.barh(y, width, left=start, height=block_height, color=color, edgecolor="black", alpha=0.4, linewidth=0.8,
-                            linestyle="--")
-
-                    if width > 0.2:
-                        ax.text(start + width / 2, y, short_label, ha="center", va="center", fontsize=5, color="black",
-                                alpha=0.8)
-
-                    legend_key = f"{assignment}_additional"
-                    if legend_key not in legend_patches:
-                        legend_patches[legend_key] = mpatches.Patch(
-                            color=color,
-                            alpha=0.4,
-                            label=f"{assignment} ({short_label})",
-                            linestyle="--",
-                            linewidth=0.8
-                        )
-
-                if break_start is not None and break_end is not None and break_start < break_end:
-                    break_width = break_end - break_start
+                if assignment == "Krank" or assignment == "Urlaub":
                     ax.barh(
-                        y, break_width, left=break_start,
+                        y,
+                        width,
+                        left=start,
                         height=block_height,
                         color="#eeeeee",
                         hatch="////",
@@ -272,13 +249,82 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
                         zorder=3
                     )
                     ax.text(
-                        break_start + break_width / 2, y, "Pause",
-                        ha="center", va="center",
-                        fontsize=4, zorder=4
+                        start + width / 2,
+                        y,
+                        assignment,
+                        ha="center",
+                        va="center",
+                        fontsize=5,
+                        zorder=4
                     )
+                else:
+                    if block_type == "working":
+                        ax.barh(y, width, left=start, height=block_height, color=color, edgecolor="black")
+                        legend_key = f"{assignment}"
+                        if legend_key not in legend_patches:
+                            legend_patches[legend_key] = mpatches.Patch(color=color, label=legend_key)
 
-        y_base = y - 0.65
-        _draw_time_labels_with_lines(ax, all_labels, y_base)
+                    elif block_type == "additional":
+                        ax.barh(
+                            y,
+                            width,
+                            left=start,
+                            height=block_height,
+                            color=color,
+                            edgecolor="black",
+                            alpha=0.4,
+                            linewidth=0.8,
+                            linestyle="--"
+                        )
+
+                        if width > 0.2:
+                            ax.text(
+                                start + width / 2,
+                                y,
+                                short_label,
+                                ha="center",
+                                va="center",
+                                fontsize=5,
+                                color="black",
+                                alpha=0.8
+                            )
+
+                        legend_key = f"{assignment}_additional"
+                        if legend_key not in legend_patches:
+                            legend_patches[legend_key] = mpatches.Patch(
+                                color=color,
+                                alpha=0.4,
+                                label=f"{assignment} ({short_label})",
+                                linestyle="--",
+                                linewidth=0.8
+                            )
+
+                    if break_start is not None and break_end is not None and break_start < break_end:
+                        break_width = break_end - break_start
+                        ax.barh(
+                            y,
+                            break_width,
+                            left=break_start,
+                            height=block_height,
+                            color="#eeeeee",
+                            hatch="////",
+                            edgecolor="black",
+                            alpha=0.6,
+                            linewidth=0.2,
+                            zorder=3
+                        )
+                        ax.text(
+                            break_start + break_width / 2,
+                            y,
+                            "Pause",
+                            ha="center",
+                            va="center",
+                            fontsize=4,
+                            zorder=4
+                        )
+
+                    y_base = y - 0.65
+                    _draw_time_labels_with_lines(ax, all_labels, y_base)
 
     ax.set_xlim(start_hour, end_hour)
     ax.set_yticks([len(filtered_data) * y_spacing - i * y_spacing - 1 for i in range(len(filtered_data))])
