@@ -272,7 +272,7 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
                             height=block_height,
                             color=color,
                             edgecolor="black",
-                            alpha=0.4,
+                            alpha=1,
                             linewidth=0.8,
                             linestyle="--"
                         )
