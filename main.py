@@ -69,4 +69,4 @@ planning_data_dict = {
 planning_frame = planning_data.iloc[12:]
 employee_times = parse_employee_times(planning_frame, cols_per_day, days_of_week)
 
-create_employee_view(employee_times, output_path, possible_assignments, year, calendar_week, start_date, days_of_week)
+create_employee_view(employee_times, output_path, possible_assignments, year, calendar_week, start_date, days_of_week, special_dates_dict)

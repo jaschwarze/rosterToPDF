@@ -2,15 +2,94 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from datetime import time, datetime, timedelta
 from matplotlib.backends.backend_pdf import PdfPages
+import pandas as pd
 
 
-def create_employee_view(employee_times, output_path, assignment_map, year, calendar_week, start_date, days_of_week):
+def create_employee_view(employee_times, output_path, assignment_map, year, calendar_week, start_date, days_of_week,
+                         special_events=None):
+
     output_filename = f"{output_path}/Mitarbeiterplan-{year}-KW{calendar_week}.pdf"
 
     with PdfPages(output_filename) as pdf:
         for day_idx, day in enumerate(days_of_week):
             current_date = (datetime.strptime(start_date, "%d.%m.%Y") + timedelta(days=day_idx)).strftime("%d.%m.%Y")
-            _create_employee_view_for_day(pdf, day, employee_times, assignment_map, calendar_week, current_date)
+            current_datetime = datetime.strptime(current_date, "%d.%m.%Y")
+
+            day_special_events = _get_special_events_for_day(special_events, current_datetime)
+            _create_employee_view_for_day(pdf, day, employee_times, assignment_map, calendar_week, current_date,
+                                          day_special_events)
+
+
+def _get_special_events_for_day(special_events, target_date):
+    if not special_events:
+        return {}
+
+    day_events = {}
+    for event_id, event_data in special_events.items():
+        event_name, event_date, start_time, end_time, assignment = event_data
+
+        if hasattr(event_date, "to_pydatetime"):
+            event_date = event_date.to_pydatetime()
+        elif isinstance(event_date, pd.Timestamp):
+            event_date = event_date.to_pydatetime()
+
+        if event_date.date() == target_date.date():
+            day_events[event_id] = event_data
+
+    return day_events
+
+
+def _get_affected_employees(employee_times, day, assignment, special_start_time, special_end_time):
+    affected_employees = []
+
+    special_start_float = _time_to_float(special_start_time)
+    special_end_float = _time_to_float(special_end_time)
+
+    for person in employee_times:
+        if not _has_work_times_for_day(person, day):
+            continue
+
+        person_affected = False
+
+        for block in [person.get("working_times", []), person.get("additional_times", [])]:
+            day_data = next((entry for entry in block if entry["day"] == day), None)
+            if not day_data:
+                continue
+
+            for key in ["entry_1", "entry_2", "entry_3", "entry_4"]:
+                entry = day_data.get(key, {})
+                entry_assignment = entry.get("assignment", "-")
+                entry_start = entry.get("start")
+                entry_end = entry.get("end")
+
+                if (not isinstance(entry_start, time) or not isinstance(entry_end, time) or
+                        entry_assignment == "-" or entry_start == "-" or entry_end == "-" or entry_start > entry_end):
+                    continue
+
+                entry_start_float = _time_to_float(entry_start)
+                entry_end_float = _time_to_float(entry_end)
+
+                time_overlap = (entry_start_float < special_end_float and
+                                entry_end_float > special_start_float)
+
+                if not time_overlap:
+                    continue
+
+                if assignment == "Übergreifend":
+                    person_affected = True
+                    break
+                elif entry_assignment == assignment:
+                    person_affected = True
+                    break
+
+            if person_affected:
+                break
+
+        if person_affected and person["name"] not in affected_employees:
+            affected_employees.append(person["name"])
+
+    return affected_employees
+
 
 def _time_to_float(t):
     return t.hour + t.minute / 60 if isinstance(t, time) else None
@@ -171,13 +250,53 @@ def _has_work_times_for_day(person, day):
     return False
 
 
-def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week, date):
+def _create_special_events_legend(day_special_events, employee_times, day):
+    if not day_special_events:
+        return [], []
+
+    legend_handles = []
+    legend_labels = []
+
+    legend_handles.append(mpatches.Patch(color="none", label=""))
+    legend_labels.append("")
+    legend_handles.append(mpatches.Patch(color="none", label=""))
+    legend_labels.append("Sondertermine:")
+
+    for event_id, event_data in day_special_events.items():
+        event_name, event_date, start_time, end_time, assignment = event_data
+        affected_employees = _get_affected_employees(employee_times, day, assignment, start_time, end_time)
+        time_info = f"{start_time.strftime('%H:%M')}-{end_time.strftime('%H:%M')}"
+
+        legend_handles.append(mpatches.Patch(color="none", label=""))
+        legend_labels.append(f"  {event_name} ({time_info})")
+
+        legend_handles.append(mpatches.Patch(color="none", label=""))
+        legend_labels.append(f"    Gruppe: {assignment}")
+
+        if affected_employees:
+            legend_handles.append(mpatches.Patch(color="none", label=""))
+            legend_labels.append(f"    Betroffene Mitarbeiter:")
+
+            for employee in affected_employees:
+                legend_handles.append(mpatches.Patch(color="none", label=""))
+                legend_labels.append(f"      • {employee}")
+        else:
+            legend_handles.append(mpatches.Patch(color="none", label=""))
+            legend_labels.append("    Keine betroffenen Mitarbeiter")
+
+        legend_handles.append(mpatches.Patch(color="none", label=""))
+        legend_labels.append("")
+
+    return legend_handles, legend_labels
+
+
+def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week, date, day_special_events=None):
     filtered_data = [person for person in data if _has_work_times_for_day(person, day)]
 
     if not filtered_data:
         return
 
-    fig, ax = plt.subplots(figsize=(14, 0.7 * len(filtered_data)))
+    fig, ax = plt.subplots(figsize=(16, 0.7 * len(filtered_data)))
     yticklabels = []
     legend_patches = {}
 
@@ -201,6 +320,12 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
                 if isinstance(break_start, time) and isinstance(break_end, time):
                     all_times.append(_time_to_float(break_start))
                     all_times.append(_time_to_float(break_end))
+
+    if day_special_events:
+        for event_id, event_data in day_special_events.items():
+            event_name, event_date, start_time, end_time, assignment = event_data
+            all_times.append(_time_to_float(start_time))
+            all_times.append(_time_to_float(end_time))
 
     start_hour = int(min(all_times)) - 1 if all_times else 6
     end_hour = int(max(all_times)) + 1 if all_times else 21
@@ -374,6 +499,11 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
             legend_handles.append(item)
             legend_labels.append(f"  {item.get_label()}")
 
+    special_handles, special_labels = _create_special_events_legend(day_special_events, filtered_data, day)
+    if special_handles:
+        legend_handles.extend(special_handles)
+        legend_labels.extend(special_labels)
+
     legend = ax.legend(handles=legend_handles, labels=legend_labels, bbox_to_anchor=(1.05, 1), loc="upper left")
 
     for i, text in enumerate(legend.get_texts()):
@@ -381,8 +511,13 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
         if label.endswith(":") and not label.startswith("  "):
             text.set_fontweight("bold")
             text.set_fontsize(10)
-        elif label.startswith("  "):
+        elif label.startswith("  ") and not label.startswith("    "):
+            text.set_fontweight("roman")
             text.set_fontsize(9)
+        elif label.startswith("    "):
+            text.set_fontsize(8)
+        elif label.startswith("      "):
+            text.set_fontsize(7)
         elif label == "":
             text.set_fontsize(4)
 
