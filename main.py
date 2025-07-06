@@ -13,7 +13,6 @@ with open("config.yaml", "r") as file:
 input_path = config["input_path"]
 output_path = config["output_path"]
 archive_path = config["archive_path"]
-assignment_map = config.get("assignments", {})
 cols_per_day = config.get("cols_per_day", 6)
 days_of_week = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"]
 
@@ -46,6 +45,10 @@ special_dates_dict = {
 
 possible_assignments = employee_data[employee_data[4].notna()][4].tolist()
 possible_groups = possible_assignments[:6]
+
+
+print(possible_groups)
+print(possible_assignments)
 
 year = planning_data[1][0]
 calendar_week = planning_data[1][1]
