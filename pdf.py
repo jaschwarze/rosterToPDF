@@ -27,18 +27,42 @@ def _draw_time_labels(ax, x_start, x_end, y_base, start_label, end_label, min_bl
         ax.text(x_start, y_base, start_label, fontsize=5, ha="center", va="top", color="black")
         ax.text(x_end, y_base, end_label, fontsize=5, ha="center", va="top", color="black")
 
+def _has_work_times_for_day(person, day):
+    for block in [person.get("working_times", []), person.get("additional_times", [])]:
+        day_data = next((entry for entry in block if entry["day"] == day), None)
+        if not day_data:
+            continue
+
+        for key in ["entry_1", "entry_2", "entry_3", "entry_4"]:
+            entry = day_data.get(key, {})
+            start = entry.get("start")
+            end = entry.get("end")
+            assignment = entry.get("assignment", "-")
+
+            if (isinstance(start, time) and isinstance(end, time) and
+                    assignment != "-" and start != "-" and end != "-" and start <= end):
+                return True
+
+    return False
+
+
 def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week, date):
-    fig, ax = plt.subplots(figsize=(14, 0.8 * len(data)))
+    filtered_data = [person for person in data if _has_work_times_for_day(person, day)]
+
+    if not filtered_data:
+        return
+
+    fig, ax = plt.subplots(figsize=(14, 0.8 * len(filtered_data)))
     yticklabels = []
     legend_patches = {}
 
     all_times = []
-    for person in data:
+    for person in filtered_data:
         for block in [person.get("working_times", []), person.get("additional_times", [])]:
             day_data = next((entry for entry in block if entry["day"] == day), None)
             if not day_data:
                 continue
-            for key in ["entry_1", "entry_2"]:
+            for key in ["entry_1", "entry_2", "entry_3", "entry_4"]:
                 entry = day_data.get(key, {})
                 start = entry.get("start")
                 end = entry.get("end")
@@ -50,8 +74,8 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
     end_hour = int(max(all_times)) + 1 if all_times else 21
 
     y_spacing = 2.5
-    for i, person in enumerate(data):
-        y = len(data) * y_spacing - i * y_spacing - 1
+    for i, person in enumerate(filtered_data):
+        y = len(filtered_data) * y_spacing - i * y_spacing - 1
         yticklabels.append(person["name"])
 
         for block_type, block_data in [("working", person.get("working_times", [])),
@@ -60,7 +84,7 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
             if not day_data:
                 continue
 
-            for key in ["entry_1", "entry_2"]:
+            for key in ["entry_1", "entry_2", "entry_3", "entry_4"]:
                 entry = day_data.get(key, {})
                 start = _time_to_float(entry.get("start"))
                 end = _time_to_float(entry.get("end"))
@@ -125,7 +149,7 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
                     )
 
     ax.set_xlim(start_hour, end_hour)
-    ax.set_yticks([len(data) * y_spacing - i * y_spacing - 1 for i in range(len(data))])
+    ax.set_yticks([len(filtered_data) * y_spacing - i * y_spacing - 1 for i in range(len(filtered_data))])
     ax.set_yticklabels(yticklabels)
 
     xticks = list(range(start_hour, end_hour + 1))
@@ -135,7 +159,7 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
 
     padding_y = 0.5
     ylim_lower = -padding_y
-    ylim_upper = len(data) * y_spacing + padding_y
+    ylim_upper = len(filtered_data) * y_spacing + padding_y
     ax.set_ylim(ylim_lower, ylim_upper)
 
     ax.grid(axis="x", linestyle="--", linewidth=0.5, alpha=0.3)
