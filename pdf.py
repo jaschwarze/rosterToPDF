@@ -18,14 +18,139 @@ def _time_to_float(t):
 def _format_time(t):
     return t.strftime("%H:%M") if isinstance(t, time) else ""
 
-def _draw_time_labels(ax, x_start, x_end, y_base, start_label, end_label, min_block_duration):
-    block_width = x_end - x_start
-    if block_width < min_block_duration:
-        ax.text(x_start, y_base, start_label, fontsize=5, ha="center", va="top", color="black")
-        ax.text(x_end, y_base - 0.3, end_label, fontsize=5, ha="center", va="top", color="black")
-    else:
-        ax.text(x_start, y_base, start_label, fontsize=5, ha="center", va="top", color="black")
-        ax.text(x_end, y_base, end_label, fontsize=5, ha="center", va="top", color="black")
+def _collect_all_time_labels(person, day):
+    labels = []
+    seen_times = set()
+
+    for block_type, block_data in [("working", person.get("working_times", [])),
+                                   ("additional", person.get("additional_times", []))]:
+        day_data = next((entry for entry in block_data if entry["day"] == day), None)
+        if not day_data:
+            continue
+
+        for key in ["entry_1", "entry_2", "entry_3", "entry_4"]:
+            entry = day_data.get(key, {})
+            start = _time_to_float(entry.get("start"))
+            end = _time_to_float(entry.get("end"))
+            start_obj = entry.get("start")
+            end_obj = entry.get("end")
+            assignment = entry.get("assignment", "-")
+            break_start = _time_to_float(entry.get("break_start"))
+            break_end = _time_to_float(entry.get("break_end"))
+
+            if start is None or end is None or assignment == "-" or start > end or start == "-" or end == "-":
+                continue
+
+            start_key = (start, _format_time(start_obj))
+            end_key = (end, _format_time(end_obj))
+
+            if start_key not in seen_times:
+                labels.append({
+                    "x": start,
+                    "text": _format_time(start_obj),
+                    "type": "work_start",
+                    "block_type": block_type
+                })
+                seen_times.add(start_key)
+
+            if end_key not in seen_times:
+                labels.append({
+                    "x": end,
+                    "text": _format_time(end_obj),
+                    "type": "work_end",
+                    "block_type": block_type
+                })
+                seen_times.add(end_key)
+
+            if break_start is not None and break_end is not None and break_start < break_end:
+                break_start_key = (break_start, _format_time(entry.get("break_start")))
+                break_end_key = (break_end, _format_time(entry.get("break_end")))
+
+                if break_start_key not in seen_times:
+                    labels.append({
+                        "x": break_start,
+                        "text": _format_time(entry.get("break_start")),
+                        "type": "break_start",
+                        "block_type": block_type
+                    })
+                    seen_times.add(break_start_key)
+
+                if break_end_key not in seen_times:
+                    labels.append({
+                        "x": break_end,
+                        "text": _format_time(entry.get("break_end")),
+                        "type": "break_end",
+                        "block_type": block_type
+                    })
+                    seen_times.add(break_end_key)
+
+    return labels
+
+
+def _calculate_label_positions(labels, min_distance=0.3):
+    if not labels:
+        return []
+
+    sorted_labels = sorted(labels, key=lambda l: l["x"])
+
+    for label in sorted_labels:
+        label["y_level"] = 0
+        label["final_x"] = label["x"]
+
+    for i, label in enumerate(sorted_labels):
+        conflicts = []
+
+        for j in range(i):
+            other = sorted_labels[j]
+            distance = abs(label["x"] - other["final_x"])
+
+            if distance < min_distance:
+                conflicts.append(other["y_level"])
+
+        level = 0
+        while level in conflicts:
+            level += 1
+
+        label["y_level"] = level
+
+    return sorted_labels
+
+
+def _draw_time_labels_with_lines(ax, labels, y_base, base_offset=0.3, level_offset=0.65):
+    positioned_labels = _calculate_label_positions(labels)
+
+    for label in positioned_labels:
+        x = label["final_x"]
+        y_level = label["y_level"]
+        text = label["text"]
+        label_y = y_base - base_offset - (y_level * level_offset)
+
+        ax.plot([x, x], [y_base - 0.1, label_y + 0.05],
+                color="black", alpha=0.5, linestyle='--', linewidth=0.5, zorder=1)
+
+        ax.text(x, label_y, text, fontsize=5, ha="center", va="top",
+                color="black", alpha=1.0, weight='normal', zorder=2)
+
+
+def _calculate_dynamic_spacing(filtered_data, day):
+    max_levels = []
+
+    for person in filtered_data:
+        labels = _collect_all_time_labels(person, day)
+        positioned_labels = _calculate_label_positions(labels)
+
+        if positioned_labels:
+            max_level = max(label["y_level"] for label in positioned_labels)
+            max_levels.append(max_level)
+
+    if not max_levels:
+        return 3
+
+    overall_max_level = max(max_levels)
+    base_spacing = 2.5
+    additional_spacing = 0.6 * overall_max_level
+
+    return base_spacing + additional_spacing
 
 def _has_work_times_for_day(person, day):
     for block in [person.get("working_times", []), person.get("additional_times", [])]:
@@ -52,7 +177,7 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
     if not filtered_data:
         return
 
-    fig, ax = plt.subplots(figsize=(14, 0.5 * len(filtered_data)))
+    fig, ax = plt.subplots(figsize=(14, 0.6 * len(filtered_data)))
     yticklabels = []
     legend_patches = {}
 
@@ -66,18 +191,28 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
                 entry = day_data.get(key, {})
                 start = entry.get("start")
                 end = entry.get("end")
+                break_start = entry.get("break_start")
+                break_end = entry.get("break_end")
+
                 if isinstance(start, time) and isinstance(end, time):
                     all_times.append(_time_to_float(start))
                     all_times.append(_time_to_float(end))
 
+                if isinstance(break_start, time) and isinstance(break_end, time):
+                    all_times.append(_time_to_float(break_start))
+                    all_times.append(_time_to_float(break_end))
+
     start_hour = int(min(all_times)) - 1 if all_times else 6
     end_hour = int(max(all_times)) + 1 if all_times else 21
 
-    y_spacing = 2.5
+    block_height = 0.9
+
+    y_spacing = _calculate_dynamic_spacing(filtered_data, day)
     for i, person in enumerate(filtered_data):
         y = len(filtered_data) * y_spacing - i * y_spacing - 1
         yticklabels.append(person["name"])
 
+        all_labels = _collect_all_time_labels(person, day)
         for block_type, block_data in [("working", person.get("working_times", [])),
                                        ("additional", person.get("additional_times", []))]:
             day_data = next((entry for entry in block_data if entry["day"] == day), None)
@@ -88,8 +223,6 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
                 entry = day_data.get(key, {})
                 start = _time_to_float(entry.get("start"))
                 end = _time_to_float(entry.get("end"))
-                start_obj = entry.get("start")
-                end_obj = entry.get("end")
                 assignment = entry.get("assignment", "-")
                 break_start = _time_to_float(entry.get("break_start"))
                 break_end = _time_to_float(entry.get("break_end"))
@@ -103,17 +236,18 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
                 short_label = assignment_entry["abbreviation"]
 
                 if block_type == "working":
-                    ax.barh(y, width, left=start, height=0.8, color=color, edgecolor="black")
-
+                    ax.barh(y, width, left=start, height=block_height, color=color, edgecolor="black")
                     legend_key = f"{assignment}"
                     if legend_key not in legend_patches:
                         legend_patches[legend_key] = mpatches.Patch(color=color, label=legend_key)
 
                 elif block_type == "additional":
-                    ax.barh(y, width, left=start, height=0.8, color=color, edgecolor="black", alpha=0.4, linewidth=0.8,
+                    ax.barh(y, width, left=start, height=block_height, color=color, edgecolor="black", alpha=0.4, linewidth=0.8,
                             linestyle="--")
-                    ax.text(start + width / 2, y, short_label, ha="center", va="center", fontsize=5, color="black",
-                            alpha=0.8)
+
+                    if width > 0.2:
+                        ax.text(start + width / 2, y, short_label, ha="center", va="center", fontsize=5, color="black",
+                                alpha=0.8)
 
                     legend_key = f"{assignment}_additional"
                     if legend_key not in legend_patches:
@@ -125,16 +259,11 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
                             linewidth=0.8
                         )
 
-                start_text = _format_time(start_obj)
-                end_text = _format_time(end_obj)
-                y_base = y - 0.55
-                _draw_time_labels(ax, start, end, y_base, start_text, end_text, 0.15)
-
                 if break_start is not None and break_end is not None and break_start < break_end:
                     break_width = break_end - break_start
                     ax.barh(
                         y, break_width, left=break_start,
-                        height=0.8,
+                        height=block_height,
                         color="#eeeeee",
                         hatch="////",
                         edgecolor="black",
@@ -148,6 +277,9 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
                         fontsize=4, zorder=4
                     )
 
+        y_base = y - 0.65
+        _draw_time_labels_with_lines(ax, all_labels, y_base)
+
     ax.set_xlim(start_hour, end_hour)
     ax.set_yticks([len(filtered_data) * y_spacing - i * y_spacing - 1 for i in range(len(filtered_data))])
     ax.set_yticklabels(yticklabels)
@@ -157,7 +289,7 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
     ax.set_xticks(xticks)
     ax.set_xticklabels(xtick_labels)
 
-    padding_y = 0.5
+    padding_y = 0.5 + (y_spacing - 2.5) * 0.3
     ylim_lower = -padding_y
     ylim_upper = len(filtered_data) * y_spacing + padding_y
     ax.set_ylim(ylim_lower, ylim_upper)
