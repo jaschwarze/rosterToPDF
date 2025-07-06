@@ -52,7 +52,7 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
     if not filtered_data:
         return
 
-    fig, ax = plt.subplots(figsize=(14, 0.8 * len(filtered_data)))
+    fig, ax = plt.subplots(figsize=(14, 0.5 * len(filtered_data)))
     yticklabels = []
     legend_patches = {}
 
