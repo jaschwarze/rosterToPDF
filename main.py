@@ -3,7 +3,7 @@ from pathlib import Path
 import glob
 import os
 import pandas as pd
-from pdf import create_employee_view
+from pdf import create_employee_view, create_group_view
 from parser import parse_employee_times
 
 with open("config.yaml", "r") as file:
@@ -69,4 +69,7 @@ planning_data_dict = {
 planning_frame = planning_data.iloc[12:]
 employee_times = parse_employee_times(planning_frame, cols_per_day, days_of_week)
 
+print("Erstelle Mitarbeiteransicht... (1/3)")
 create_employee_view(employee_times, output_path, possible_assignments, year, calendar_week, start_date, days_of_week, special_dates_dict)
+print("Erstelle Gruppenansicht... (2/3)")
+create_group_view(employee_times, output_path, possible_assignments, year, calendar_week, start_date, days_of_week, possible_groups, special_dates_dict)
