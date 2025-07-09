@@ -5,17 +5,17 @@ from matplotlib.backends.backend_pdf import PdfPages
 import pandas as pd
 
 
-def create_group_view(employee_times, output_path, assignment_map, year, calendar_week, start_date, days_of_week, possible_groups, special_events=None):
+def create_group_view(employee_times, output_path, assignment_map, year, calendar_week, start_date, days_of_week, possible_groups, employee_dict, special_events=None):
     output_filename = f"{output_path}/Gruppenplan-{year}-KW{calendar_week}.pdf"
 
     with PdfPages(output_filename) as pdf:
         for group in possible_groups:
-            _create_group_view_for_assignment(pdf, group, employee_times, assignment_map, year, calendar_week, start_date, days_of_week, special_events)
+            _create_group_view_for_assignment(pdf, group, employee_times, assignment_map, year, calendar_week, start_date, days_of_week, employee_dict, special_events)
 
     print(f"Gruppenplan erstellt unter: {output_filename}")
 
 
-def _create_group_view_for_assignment(pdf, assignment, employee_times, assignment_map, year, calendar_week, start_date, days_of_week, special_events=None):
+def _create_group_view_for_assignment(pdf, assignment, employee_times, assignment_map, year, calendar_week, start_date, days_of_week, employee_dict, special_events=None):
     group_data = _collect_group_data(employee_times, assignment, days_of_week)
     if not any(group_data[day] for day in days_of_week):
         return
@@ -33,11 +33,11 @@ def _create_group_view_for_assignment(pdf, assignment, employee_times, assignmen
             if len(day_special_events) > max_counter:
                 max_counter = len(day_special_events)
 
-        special_event_height = 0.4 + max_counter * 0.08
+        special_event_height = 0.5 + max_counter * 0.08
 
     fig, ax = plt.subplots(figsize=(16, max(8, max_employees_per_day * optimal_block_height + 4 + special_event_height)))
 
-    _draw_group_table(ax, group_data, days_of_week, start_date, assignment_map, assignment, special_events, optimal_block_height, special_event_height)
+    _draw_group_table(ax, group_data, days_of_week, start_date, assignment_map, assignment, special_events, optimal_block_height, special_event_height, employee_dict)
 
     if assignment == "Übergreifend":
         title = f"{assignment} - KW {calendar_week} ({year})"
@@ -89,7 +89,7 @@ def _calculate_optimal_block_height(group_data, days_of_week):
     return max(base_height, base_height + text_height + padding)
 
 
-def _draw_group_table(ax, group_data, days_of_week, start_date, assignment_map, assignment, special_events, block_height, special_event_height):
+def _draw_group_table(ax, group_data, days_of_week, start_date, assignment_map, assignment, special_events, block_height, special_event_height, employee_dict):
     assignment_info = assignment_map.get(assignment, {"color": "#e6e6e6"})
     color = assignment_info["color"]
 
@@ -101,6 +101,9 @@ def _draw_group_table(ax, group_data, days_of_week, start_date, assignment_map, 
 
         current_datetime = datetime.strptime(start_date, "%d.%m.%Y") + timedelta(days=day_idx)
         day_special_events = _get_special_events_for_day(special_events, current_datetime)
+
+        fachkraft_duration = timedelta()
+        integrationskraft_duration = timedelta()
 
         special_events_for_assignment = []
         for event_id, event_data in day_special_events.items():
@@ -119,13 +122,15 @@ def _draw_group_table(ax, group_data, days_of_week, start_date, assignment_map, 
             ax.add_patch(special_event_rect)
 
 
-            special_event_texts = ["Sonstiges:\n"]
+            special_event_texts = ["Sondertermine:\n"]
             for event_name, start_time, end_time in special_events_for_assignment:
+                time_str = f"{event_name}"
                 if isinstance(start_time, time) and isinstance(end_time, time) and start_time != time(0, 0) and end_time != time(0, 0):
-                    time_str = f"{start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')}"
-                    special_event_texts.append(f"{event_name}: {time_str}")
-                else:
-                    special_event_texts.append(f"{event_name}")
+                    time_str = f"{event_name}: {start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')} Uhr"
+                elif isinstance(start_time, time) and start_time != time(0, 0):
+                    time_str = f"{event_name}: {start_time.strftime('%H:%M')} Uhr"
+
+                special_event_texts.append(time_str)
 
             special_event_text = "\n".join(special_event_texts)
             ax.text(x_pos + column_width / 2, special_event_y_pos + special_event_height / 2, special_event_text, ha="center", va="center", fontsize=9, fontweight="bold", color="black")
@@ -140,7 +145,7 @@ def _draw_group_table(ax, group_data, days_of_week, start_date, assignment_map, 
 
         employees = group_data[day]
         for emp_idx, employee in enumerate(employees):
-            y_pos = (max_employees - emp_idx - 0.2) * block_height
+            y_pos = (max_employees - emp_idx - 0.1) * block_height
 
             emp_rect = plt.Rectangle((x_pos, y_pos), column_width, block_height, facecolor="white", edgecolor="black", linewidth=1)
             ax.add_patch(emp_rect)
@@ -193,23 +198,21 @@ def _draw_group_table(ax, group_data, days_of_week, start_date, assignment_map, 
                 else:
                     total_duration += end_datetime - start_datetime
 
-            hours = total_duration.seconds // 3600
-            minutes = (total_duration.seconds % 3600) // 60
-            if minutes > 0:
-                duration_text = f"Arbeitszeit: {hours}:{minutes} Std."
-            else:
-                duration_text = f"Arbeitszeit: {hours} Std."
+            main_time_texts.append(f"Arbeitszeit: {_duration_to_string(total_duration)} Std.")
 
-            main_time_texts.append(duration_text)
+            employee_position = employee_dict.get(employee["name"], {})[1]
+            if employee_position == "Fachkraft":
+                fachkraft_duration += total_duration
+            elif employee_position == "Integrationskraft":
+                integrationskraft_duration += total_duration
 
             text_start_y = name_y_pos - 0.15
-
             if main_time_texts:
                 main_text = "\n".join(main_time_texts)
                 main_lines = len(main_text.split("\n"))
                 main_text_y = text_start_y - (main_lines * 0.04)
 
-                ax.text(x_pos + column_width / 2, main_text_y, main_text, ha="center", va="center", fontsize=8, color="black")
+                ax.text(x_pos + column_width / 2, main_text_y, main_text, ha="center", va="center", fontsize=9, color="black")
 
             if additional_time_texts:
                 additional_text = "\n".join(additional_time_texts)
@@ -218,8 +221,23 @@ def _draw_group_table(ax, group_data, days_of_week, start_date, assignment_map, 
                 main_lines = len("\n".join(main_time_texts).split("\n")) if main_time_texts else 0
                 additional_text_y = text_start_y - (main_lines * 0.06) - 0.2 - (additional_lines * 0.04)
 
-                ax.text(x_pos + column_width / 2, additional_text_y, additional_text, ha="center", va="center", fontsize=7, color="gray", style="italic")
+                ax.text(x_pos + column_width / 2, additional_text_y, additional_text, ha="center", va="center", fontsize=8, color="gray", style="italic")
 
+        bottom_rect = plt.Rectangle((x_pos, 0.25), column_width, 0.4, facecolor="lightgrey", edgecolor="black", linewidth=1.5)
+        ax.add_patch(bottom_rect)
+
+        info_text = f"FK: {_duration_to_string(fachkraft_duration)} Std.\nIK: {_duration_to_string(integrationskraft_duration)} Std."
+        ax.text(x_pos + column_width / 2, 0.25 + 0.2, info_text, ha="center", va="center", fontsize=10)
+
+def _duration_to_string(duration):
+    hours = duration.seconds // 3600
+    minutes = (duration.seconds % 3600) // 60
+    if minutes > 0:
+        duration_text = f"{hours}:{minutes}"
+    else:
+        duration_text = f"{hours}"
+
+    return duration_text
 
 def _collect_group_data(employee_times, target_assignment, days_of_week):
     group_data = {day: [] for day in days_of_week}
@@ -315,7 +333,6 @@ def _check_for_special_events(special_events, assignment, start_date, days_of_we
                 return True
 
     return False
-
 
 def _get_special_events_for_day(special_events, target_date):
     if not special_events:

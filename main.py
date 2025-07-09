@@ -72,4 +72,4 @@ employee_times = parse_employee_times(planning_frame, cols_per_day, days_of_week
 print("Erstelle Mitarbeiteransicht... (1/3)")
 create_employee_view(employee_times, output_path, possible_assignments, year, calendar_week, start_date, days_of_week, special_dates_dict)
 print("Erstelle Gruppenansicht... (2/3)")
-create_group_view(employee_times, output_path, possible_assignments, year, calendar_week, start_date, days_of_week, possible_groups, special_dates_dict)
+create_group_view(employee_times, output_path, possible_assignments, year, calendar_week, start_date, days_of_week, possible_groups, employee_dict, special_dates_dict)
