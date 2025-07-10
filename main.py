@@ -1,9 +1,10 @@
+import shutil
 import yaml
 from pathlib import Path
 import glob
 import os
 import pandas as pd
-from pdf import create_employee_view, create_group_view
+from pdf import create_employee_view, create_group_view, create_leader_view
 from parser import parse_employee_times
 
 with open("config.yaml", "r") as file:
@@ -73,3 +74,14 @@ print("Erstelle Mitarbeiteransicht... (1/3)")
 create_employee_view(employee_times, output_path, possible_assignments, year, calendar_week, start_date, days_of_week, special_dates_dict)
 print("Erstelle Gruppenansicht... (2/3)")
 create_group_view(employee_times, output_path, possible_assignments, year, calendar_week, start_date, days_of_week, possible_groups, employee_dict, special_dates_dict)
+print("Erstelle Leitungsansicht... (3/3)")
+create_leader_view(employee_times, output_path, possible_assignments, year, calendar_week, days_of_week, possible_groups, employee_dict)
+
+copy_path = os.path.join(archive_path, str(year), "KW-" + str(calendar_week))
+if os.path.isdir(copy_path):
+    print(f"Kopie der Auswertung in {copy_path} übersprungen, das schon existiert.")
+else:
+    os.makedirs(copy_path, exist_ok=True)
+    for file in glob.glob(os.path.join(output_path, "*.pdf")):
+        output_file = os.path.join(copy_path, os.path.basename(file))
+        shutil.copyfile(file, output_file)

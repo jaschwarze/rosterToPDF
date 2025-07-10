@@ -2,3 +2,5 @@ pandas
 openpyxl
 PyYAML
 matplotlib
+seaborn
+numpy

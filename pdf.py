@@ -3,7 +3,508 @@ import matplotlib.patches as mpatches
 from datetime import time, datetime, timedelta
 from matplotlib.backends.backend_pdf import PdfPages
 import pandas as pd
+import seaborn as sns
+import numpy as np
 
+SHIFTS = {
+        "Frühdienst": [(time(6, 45), time(7, 0)), (time(7, 0), time(7, 30))],
+        "Mittagsdienst": [(time(11, 45), time(13, 30))],
+        "Ruhephase 1 \n(12-13 Uhr)": [(time(12, 0), time(13, 0))],
+        "Ruhephase 2 \n(13-14 Uhr)": [(time(13, 0), time(14, 0))],
+        "Ruhephase 3 \n(14-15 Uhr)": [(time(14, 0), time(15, 0))],
+        "Nachmittagsdienst": [(time(15, 0), time(16, 0))]
+    }
+
+def create_leader_view(employee_times, output_path, assignment_map, year, calendar_week, days_of_week, possible_groups, employee_dict):
+    output_filename = f"{output_path}/Leitungsplan-{year}-KW{calendar_week}.pdf"
+
+    with PdfPages(output_filename) as pdf:
+        group_counts = _calculate_group_counts(employee_times, days_of_week, possible_groups)
+        _create_group_count_table(pdf, group_counts, days_of_week, possible_groups, year, calendar_week, assignment_map)
+
+        shift_counts, shift_employees = _calculate_shift_counts(employee_times, days_of_week)
+        _create_shift_count_table(pdf, shift_counts, days_of_week, year, calendar_week)
+
+        _create_shift_employee_table(pdf, shift_employees, days_of_week, year, calendar_week)
+
+        saldo_data = _calculate_saldo_data(employee_times)
+        _create_saldo_table(pdf, saldo_data, year, calendar_week)
+
+        absence_data = _calculate_absence_data(employee_times, days_of_week)
+        _create_absence_table(pdf, absence_data, days_of_week, year, calendar_week)
+
+        _create_shift_heatmap(pdf, shift_counts, days_of_week, year, calendar_week)
+
+        _create_group_bar_chart(pdf, group_counts, days_of_week, possible_groups, year, calendar_week, assignment_map)
+
+        _create_shift_bar_chart(pdf, shift_counts, days_of_week, year, calendar_week)
+
+        qualification_hours = _calculate_qualification_hours(employee_times, days_of_week, employee_dict)
+        _create_qualification_bar_chart(pdf, qualification_hours, days_of_week, year, calendar_week)
+
+        group_hours = _calculate_group_hours(employee_times, days_of_week, possible_groups)
+        _create_group_hours_bar_chart(pdf, group_hours, days_of_week, possible_groups, year, calendar_week, assignment_map)
+
+    print(f"Leitungsplan erstellt unter: {output_filename}")
+
+
+def _calculate_group_hours(employee_times, days_of_week, possible_groups):
+    group_hours = {day: {group: 0 for group in possible_groups} for day in days_of_week}
+
+    for person in employee_times:
+        for day in days_of_week:
+            day_data = next((entry for entry in person.get("working_times", []) if entry["day"] == day), None)
+
+            if not day_data:
+                continue
+
+            for key in ["entry_1", "entry_2"]:
+                entry = day_data.get(key, {})
+                assignment = entry.get("assignment", "-")
+                start = entry.get("start")
+                end = entry.get("end")
+                break_start = entry.get("break_start")
+                break_end = entry.get("break_end")
+
+                if not (isinstance(start, time) and isinstance(end, time) and assignment in possible_groups):
+                    continue
+
+                start_dt = datetime.combine(datetime.today(), start)
+                end_dt = datetime.combine(datetime.today(), end)
+                duration = end_dt - start_dt
+
+                if isinstance(break_start, time) and isinstance(break_end, time):
+                    break_start_dt = datetime.combine(datetime.today(), break_start)
+                    break_end_dt = datetime.combine(datetime.today(), break_end)
+                    duration -= (break_end_dt - break_start_dt)
+
+                hours = duration.total_seconds() / 3600
+                group_hours[day][assignment] += hours
+
+    return group_hours
+
+
+def _create_group_hours_bar_chart(pdf, group_hours, days_of_week, possible_groups, year, calendar_week, assignment_map):
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    x = np.arange(len(days_of_week))
+    width = 0.15
+    for i, group in enumerate(possible_groups):
+        hours = [group_hours[day][group] for day in days_of_week]
+        color = assignment_map.get(group, {"color": "#e6e6e6"})["color"]
+        ax.bar(x + i * width, hours, width, label=group, color=color)
+
+    ax.set_xlabel("Tage")
+    ax.set_ylabel("Arbeitsstunden")
+    ax.set_title(f"Arbeitsstunden pro Gruppe - KW {calendar_week} ({year})")
+    ax.set_xticks(x + width * (len(possible_groups) - 1) / 2)
+    ax.set_xticklabels(days_of_week)
+    ax.legend()
+
+    plt.tight_layout()
+    pdf.savefig()
+    plt.close()
+
+
+def _create_shift_employee_table(pdf, shift_employees, days_of_week, year, calendar_week):
+    fig, ax = plt.subplots(figsize=(12, 10))
+    ax.axis("off")
+
+    shifts = list(shift_employees[days_of_week[0]].keys())
+    table_data = [["Tag"] + shifts]
+
+    max_names = 1
+    for day in days_of_week:
+        for shift in shifts:
+            num_names = len(shift_employees[day][shift])
+            max_names = max(max_names, num_names)
+
+    for day in days_of_week:
+        row = [day]
+        for shift in shifts:
+            employees = shift_employees[day][shift]
+            if employees:
+                employee_text = ""
+                for i in range(0, len(employees), 2):
+                    group = employees[i:i + 2]
+                    employee_text += ", ".join(group) + "\n"
+            else:
+                employee_text = "-"
+            row.append(employee_text)
+        table_data.append(row)
+
+
+    table = ax.table(cellText=table_data, cellLoc="center", loc="center", bbox=[0, 0, 1, 1])
+    table.auto_set_font_size(False)
+    table.set_fontsize(8)
+
+    table.scale(1.2, 1 + max_names * 0.2)
+
+    for i in range(len(table_data)):
+        for j in range(len(table_data[0])):
+            cell = table[i, j]
+            if i == 0:
+                cell.set_text_props(weight="bold", color="white")
+                cell.set_height(0.03)
+                cell.set_facecolor("#40466e")
+            else:
+                cell.set_facecolor("#f7f7f7" if i % 2 else "#ffffff")
+
+            cell.set_text_props(ha="center", va="center")
+            cell.set_height(cell.get_height() * (1 + max_names * 0.1))
+
+    ax.set_title(f"Mitarbeiter pro Schicht (Namen) - KW {calendar_week} ({year})", fontsize=14, pad=20)
+
+    plt.tight_layout()
+    pdf.savefig()
+    plt.close()
+
+
+def _calculate_shift_counts(employee_times, days_of_week):
+    shift_counts = {day: {shift: 0 for shift in SHIFTS} for day in days_of_week}
+    shift_employees = {day: {shift: [] for shift in SHIFTS} for day in days_of_week}
+
+    def time_overlap(entry_start, entry_end, shift_start, shift_end):
+        return entry_start < shift_end and entry_end > shift_start
+
+    for person in employee_times:
+        for day in days_of_week:
+            day_data = next((entry for entry in person.get("working_times", []) if entry["day"] == day), None)
+            if not day_data:
+                continue
+            for key in ["entry_1", "entry_2"]:
+                entry = day_data.get(key, {})
+                start = entry.get("start")
+                end = entry.get("end")
+                if not (isinstance(start, time) and isinstance(end, time)):
+                    continue
+                for shift_name, shift_times in SHIFTS.items():
+                    for shift_start, shift_end in shift_times:
+                        if time_overlap(start, end, shift_start, shift_end):
+                            shift_counts[day][shift_name] += 1
+                            if person["name"] not in shift_employees[day][shift_name]:
+                                shift_employees[day][shift_name].append(person["name"])
+                            break
+
+    return shift_counts, shift_employees
+
+def _calculate_group_counts(employee_times, days_of_week, possible_groups):
+    group_counts = {day: {group: 0 for group in possible_groups} for day in days_of_week}
+
+    for person in employee_times:
+        for day in days_of_week:
+            day_data = next((entry for entry in person.get("working_times", []) if entry["day"] == day), None)
+            if not day_data:
+                continue
+            for key in ["entry_1", "entry_2"]:
+                entry = day_data.get(key, {})
+                assignment = entry.get("assignment", "-")
+                if assignment in possible_groups and isinstance(entry.get("start"), time) and isinstance(
+                        entry.get("end"), time):
+                    group_counts[day][assignment] += 1
+
+    return group_counts
+
+def _calculate_saldo_data(employee_times):
+    saldo_data = []
+    for person in employee_times:
+        saldo = person.get("week_saldo", 0)
+        status = "Positiv" if saldo > 0 else "Negativ" if saldo < 0 else "Neutral"
+        saldo_data.append({
+            "name": person["name"],
+            "saldo": round(saldo, 2),
+            "status": status
+        })
+    return sorted(saldo_data, key=lambda x: x["saldo"], reverse=True)
+
+
+def _calculate_absence_data(employee_times, days_of_week):
+    absence_data = {day: {"Krank": [], "Urlaub": []} for day in days_of_week}
+
+    for person in employee_times:
+        for day in days_of_week:
+            day_data = next((entry for entry in person.get("working_times", []) if entry["day"] == day), None)
+            if not day_data:
+                continue
+            for key in ["entry_1", "entry_2"]:
+                entry = day_data.get(key, {})
+                assignment = entry.get("assignment", "-")
+                if assignment in ["Krank", "Urlaub"]:
+                    absence_data[day][assignment].append(person["name"])
+
+    return absence_data
+
+
+def _calculate_qualification_hours(employee_times, days_of_week, employee_dict):
+    qualification_hours = {day: {"Fachkraft": 0, "Integrationskraft": 0} for day in days_of_week}
+
+    for person in employee_times:
+        position = employee_dict.get(person["name"], (None, None))[1]
+
+        if position not in ["Fachkraft", "Integrationskraft"]:
+            continue
+
+        for day in days_of_week:
+            day_data = next((entry for entry in person.get("working_times", []) if entry["day"] == day), None)
+
+            if not day_data:
+                continue
+
+            for key in ["entry_1", "entry_2"]:
+                entry = day_data.get(key, {})
+                start = entry.get("start")
+                end = entry.get("end")
+                break_start = entry.get("break_start")
+                break_end = entry.get("break_end")
+
+                if not (isinstance(start, time) and isinstance(end, time)):
+                    continue
+
+                start_dt = datetime.combine(datetime.today(), start)
+                end_dt = datetime.combine(datetime.today(), end)
+                duration = end_dt - start_dt
+
+                if isinstance(break_start, time) and isinstance(break_end, time):
+                    break_start_dt = datetime.combine(datetime.today(), break_start)
+                    break_end_dt = datetime.combine(datetime.today(), break_end)
+                    duration -= (break_end_dt - break_start_dt)
+
+                hours = duration.total_seconds() / 3600
+                qualification_hours[day][position] += hours
+
+    return qualification_hours
+
+
+def _create_group_count_table(pdf, group_counts, days_of_week, possible_groups, year, calendar_week, assignment_map):
+    fig, ax = plt.subplots(figsize=(10, 3))
+    ax.axis("off")
+
+    table_data = [[""] + possible_groups]
+    for day in days_of_week:
+        row = [day] + [group_counts[day][group] for group in possible_groups]
+        table_data.append(row)
+
+    table = ax.table(cellText=table_data, cellLoc="center", loc="center", bbox=[0, 0, 1, 1])
+    table.auto_set_font_size(False)
+    table.set_fontsize(8)
+    table.scale(1.2, 0.8)
+
+    for i in range(len(table_data)):
+        for j in range(len(table_data[0])):
+            cell = table[i, j]
+            cell.set_height(0.05)
+            if i == 0 and j == 0:
+                cell.set_text_props(weight="bold", color="white")
+                cell.set_facecolor("#40466e")
+            elif i == 0:
+                group = possible_groups[j - 1]
+                color = assignment_map.get(group, {"color": "#e6e6e6"})["color"]
+                cell.set_text_props(weight="bold", color="black")
+                cell.set_facecolor(color)
+            elif j == 0:
+                cell.set_text_props(weight="bold", color="white")
+                cell.set_facecolor("#40466e")
+            else:
+                cell.set_facecolor("#f7f7f7" if (i + j) % 2 else "#ffffff")
+
+    ax.set_title(f"Mitarbeiter pro Gruppe - KW {calendar_week} ({year})", fontsize=14, pad=20)
+
+    plt.tight_layout()
+    pdf.savefig()
+    plt.close()
+
+
+def _create_shift_count_table(pdf, shift_counts, days_of_week, year, calendar_week):
+    fig, ax = plt.subplots(figsize=(10, 3))
+    ax.axis("off")
+
+    shifts = list(shift_counts[days_of_week[0]].keys())
+    table_data = [[""] + shifts]
+
+    for day in days_of_week:
+        row = [day] + [shift_counts[day][shift] for shift in shifts]
+        table_data.append(row)
+
+    table = ax.table(cellText=table_data, cellLoc="center", loc="center", bbox=[0, 0, 1, 1])
+    table.auto_set_font_size(False)
+    table.set_fontsize(8)
+    table.scale(1.2, 0.8)
+
+    for i in range(len(table_data)):
+        for j in range(len(table_data[0])):
+            cell = table[i, j]
+            cell.set_height(0.05)
+            if i == 0 or j == 0:
+                cell.set_text_props(weight="bold", color="white")
+                cell.set_facecolor("#40466e")
+            else:
+                cell.set_facecolor("#f7f7f7" if (i + j) % 2 else "#ffffff")
+
+    ax.set_title(f"Mitarbeiter pro Schicht - KW {calendar_week} ({year})", fontsize=14, pad=20)
+
+    plt.tight_layout()
+    pdf.savefig()
+    plt.close()
+
+
+def _create_saldo_table(pdf, saldo_data, year, calendar_week):
+    fig, ax = plt.subplots(figsize=(7, 6))
+    ax.axis("off")
+
+    table_data = [["Mitarbeiter", "Wöchentliches Saldo (Std.)", "Status"]]
+    for entry in saldo_data:
+        table_data.append([entry["name"], f"{entry['saldo']:.2f}", entry["status"]])
+
+    table = ax.table(cellText=table_data, cellLoc="center", loc="center", bbox=[0, 0, 1, 1])
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1.2, 1.2)
+
+    for i in range(len(table_data)):
+        for j in range(len(table_data[0])):
+            cell = table[i, j]
+            if i == 0:
+                cell.set_text_props(weight="bold", color="white")
+                cell.set_facecolor("#40466e")
+            else:
+                cell.set_facecolor("#f7f7f7" if i % 2 else "#ffffff")
+
+    ax.set_title(f"Überstunden- und Saldoübersicht - KW {calendar_week} ({year})", fontsize=14, pad=20)
+
+    plt.tight_layout()
+    pdf.savefig()
+    plt.close()
+
+
+def _create_absence_table(pdf, absence_data, days_of_week, year, calendar_week):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.axis("off")
+
+    table_data = [["Tag", "Krank", "Urlaub"]]
+    for day in days_of_week:
+        if absence_data[day]["Krank"]:
+            krank = ""
+            for i in range(0, len(absence_data[day]["Krank"]), 2):
+                people = absence_data[day]["Krank"][i:i + 2]
+                krank += ", ".join(people) + "\n"
+        else:
+            krank = "-"
+
+        if absence_data[day]["Urlaub"]:
+            urlaub = ""
+            for i in range(0, len(absence_data[day]["Urlaub"]), 2):
+                people = absence_data[day]["Urlaub"][i:i + 2]
+                urlaub += ", ".join(people) + "\n"
+        else:
+            urlaub = "-"
+
+        table_data.append([day, krank, urlaub])
+
+    table = ax.table(cellText=table_data, cellLoc="center", loc="center", bbox=[0, 0, 1, 1])
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1.2, 1.2)
+
+    for i in range(len(table_data)):
+        for j in range(len(table_data[0])):
+            cell = table[i, j]
+            if i == 0:
+                cell.set_text_props(weight="bold", color="white")
+                cell.set_facecolor("#40466e")
+            else:
+                cell.set_facecolor("#f7f7f7" if i % 2 else "#ffffff")
+
+    ax.set_title(f"Abwesenheitsübersicht - KW {calendar_week} ({year})", fontsize=14, pad=20)
+
+    plt.tight_layout()
+    pdf.savefig()
+    plt.close()
+
+
+def _create_shift_heatmap(pdf, shift_counts, days_of_week, year, calendar_week):
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    shifts = list(shift_counts[days_of_week[0]].keys())
+    data = np.array([[shift_counts[day][shift] for shift in shifts] for day in days_of_week])
+
+    sns.heatmap(data, annot=True, fmt="d", cmap="YlGnBu", ax=ax,
+                xticklabels=shifts, yticklabels=days_of_week)
+
+    ax.set_title(f"Schichtbesetzung Heatmap - KW {calendar_week} ({year})", fontsize=14)
+    ax.set_xlabel("Schichten")
+    ax.set_ylabel("Tage")
+
+    plt.tight_layout()
+    pdf.savefig()
+    plt.close()
+
+
+def _create_group_bar_chart(pdf, group_counts, days_of_week, possible_groups, year, calendar_week, assignment_map):
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    x = np.arange(len(days_of_week))
+    width = 0.15
+    for i, group in enumerate(possible_groups):
+        counts = [group_counts[day][group] for day in days_of_week]
+        color = assignment_map.get(group, {"color": "#e6e6e6"})["color"]
+        ax.bar(x + i * width, counts, width, label=group, color=color)
+
+    ax.set_xlabel("Tage")
+    ax.set_ylabel("Anzahl Mitarbeiter")
+    ax.set_title(f"Mitarbeiterverteilung nach Gruppen - KW {calendar_week} ({year})")
+    ax.set_xticks(x + width * (len(possible_groups) - 1) / 2)
+    ax.set_xticklabels(days_of_week)
+    ax.legend()
+
+    plt.tight_layout()
+    pdf.savefig()
+    plt.close()
+
+
+def _create_shift_bar_chart(pdf, shift_counts, days_of_week, year, calendar_week):
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    x = np.arange(len(days_of_week))
+    width = 0.15
+    shifts = list(shift_counts[days_of_week[0]].keys())
+    for i, shift in enumerate(shifts):
+        counts = [shift_counts[day][shift] for day in days_of_week]
+        ax.bar(x + i * width, counts, width, label=shift)
+
+    ax.set_xlabel("Tage")
+    ax.set_ylabel("Anzahl Mitarbeiter")
+    ax.set_title(f"Mitarbeiterverteilung nach Schichten - KW {calendar_week} ({year})")
+    ax.set_xticks(x + width * (len(shifts) - 1) / 2)
+    ax.set_xticklabels(days_of_week)
+    ax.legend()
+
+    plt.tight_layout()
+    pdf.savefig()
+    plt.close()
+
+
+def _create_qualification_bar_chart(pdf, qualification_hours, days_of_week, year, calendar_week):
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    x = np.arange(len(days_of_week))
+    width = 0.35
+
+    fachkraft_hours = [qualification_hours[day]["Fachkraft"] for day in days_of_week]
+    integrationskraft_hours = [qualification_hours[day]["Integrationskraft"] for day in days_of_week]
+
+    ax.bar(x - width / 2, fachkraft_hours, width, label="Fachkraft", color="#1f77b4")
+    ax.bar(x + width / 2, integrationskraft_hours, width, label="Integrationskraft", color="#ff7f0e")
+
+    ax.set_xlabel("Tage")
+    ax.set_ylabel("Arbeitsstunden")
+    ax.set_title(f"Arbeitszeitverteilung nach Qualifikation - KW {calendar_week} ({year})")
+    ax.set_xticks(x)
+    ax.set_xticklabels(days_of_week)
+    ax.legend()
+
+    plt.tight_layout()
+    pdf.savefig()
+    plt.close()
 
 def create_group_view(employee_times, output_path, assignment_map, year, calendar_week, start_date, days_of_week, possible_groups, employee_dict, special_events=None):
     output_filename = f"{output_path}/Gruppenplan-{year}-KW{calendar_week}.pdf"
