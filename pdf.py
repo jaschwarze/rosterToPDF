@@ -684,7 +684,8 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
     if not filtered_data:
         return
 
-    fig, ax = plt.subplots(figsize=(16, 0.7 * len(filtered_data)))
+    base_width, base_height = 16, 1.5 * len(filtered_data)
+    fig, ax = plt.subplots(figsize=(base_width, base_height))
     yticklabels = []
     legend_patches = {}
     default_start_hour = 6
@@ -838,6 +839,11 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
             text.set_fontsize(7)
         elif label == "":
             text.set_fontsize(4)
+
+    additional_height = max(0, (len(legend_labels) - 4) * 0.08)
+    new_height = base_height + additional_height
+    fig.set_size_inches(base_width, new_height)
+
     plt.tight_layout()
     pdf.savefig()
     plt.close()
