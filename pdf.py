@@ -1,3 +1,4 @@
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from datetime import time, datetime, timedelta
@@ -5,6 +6,8 @@ from matplotlib.backends.backend_pdf import PdfPages
 import pandas as pd
 import seaborn as sns
 import numpy as np
+
+matplotlib.use("agg")
 
 SHIFTS = {
     "Frühdienst": [(time(6, 45), time(7, 0)), (time(7, 0), time(7, 30))],
