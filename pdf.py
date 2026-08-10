@@ -389,6 +389,7 @@ def _draw_group_table(ax, group_data, days_of_week, start_date, assignment_map, 
             special_event_texts = ["Sondertermine:\n"] + [f"{name}: {start.strftime('%H:%M')} - {end.strftime('%H:%M')} Uhr" if start != time(0, 0) and end != time(0, 0) else
                                                          f"{name}: {start.strftime('%H:%M')} Uhr" if start != time(0, 0) else name for name, start, end in special_events_for_assignment]
             ax.text(x_pos + column_width / 2, special_event_y_pos + special_event_height / 2, "\n".join(special_event_texts), ha="center", va="center", fontsize=9, fontweight="bold", color="black")
+
         header_y_pos = max_employees * block_height + 1
         current_date = current_datetime.strftime("%d.%m.")
         ax.add_patch(plt.Rectangle((x_pos, header_y_pos), column_width, 0.6, facecolor=color, edgecolor="black", linewidth=1))
@@ -397,7 +398,7 @@ def _draw_group_table(ax, group_data, days_of_week, start_date, assignment_map, 
         employees = group_data[day]
 
         for emp_idx, employee in enumerate(employees):
-            y_pos = (max_employees - emp_idx - 0.1) * block_height
+            y_pos = header_y_pos - (emp_idx + 1) * block_height
             ax.add_patch(plt.Rectangle((x_pos, y_pos), column_width, block_height, facecolor="white", edgecolor="black", linewidth=1))
             name_y_pos = y_pos + block_height - 0.15
             ax.text(x_pos + column_width / 2, name_y_pos, employee["name"], ha="center", va="center", fontsize=10, fontweight="bold")
@@ -417,6 +418,7 @@ def _draw_group_table(ax, group_data, days_of_week, start_date, assignment_map, 
                 fachkraft_duration += timedelta(seconds=total_duration)
             elif employee_position == "Integrationskraft":
                 integrationskraft_duration += timedelta(seconds=total_duration)
+
             text_start_y = name_y_pos - 0.15
 
             if main_time_texts:
