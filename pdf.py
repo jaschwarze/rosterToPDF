@@ -756,7 +756,7 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
 
                 width = end - start
                 assignment_entry = assignment_map.get(assignment, {"color": "#e6e6e6", "abbreviation": "?"})
-                color = assignment_entry["color"]
+                color = assignment_entry["color"] or "#e8dfdf"
                 short_label = assignment_entry["abbreviation"]
 
                 if assignment in ["Krank", "Urlaub"]:
