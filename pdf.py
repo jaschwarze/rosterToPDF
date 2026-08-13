@@ -392,8 +392,8 @@ def _draw_group_table(ax, group_data, days_of_week, start_date, assignment_map, 
 
         header_y_pos = max_employees * block_height + 1
         current_date = current_datetime.strftime("%d.%m.")
-        ax.add_patch(plt.Rectangle((x_pos, header_y_pos), column_width, 0.6, facecolor=color, edgecolor="black", linewidth=1))
-        ax.text(x_pos + column_width / 2, header_y_pos + 0.4, day, ha="center", va="center", fontsize=12, fontweight="bold")
+        ax.add_patch(plt.Rectangle((x_pos, header_y_pos), column_width, 0.3, facecolor=color, edgecolor="black", linewidth=1))
+        ax.text(x_pos + column_width / 2, header_y_pos + 0.2, day, ha="center", va="center", fontsize=12, fontweight="bold")
         ax.text(x_pos + column_width / 2, header_y_pos + 0.1, current_date, ha="center", va="center", fontsize=10)
         employees = group_data[day]
 
