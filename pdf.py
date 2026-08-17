@@ -6,6 +6,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 import pandas as pd
 import seaborn as sns
 import numpy as np
+import worker
 
 matplotlib.use("agg")
 
@@ -495,14 +496,12 @@ def _get_special_events_for_day(special_events, target_date):
         return {}
 
     day_events = {}
+    target_weekday = worker.DAYS_OF_WEEK[target_date.weekday()]
+
     for event_id, event_data in special_events.items():
         event_name, event_date, start_time, end_time, assignment = event_data
 
-        if hasattr(event_date, "to_pydatetime"):
-            event_date = event_date.to_pydatetime()
-        elif isinstance(event_date, pd.Timestamp):
-            event_date = event_date.to_pydatetime()
-        if event_date.date() == target_date.date():
+        if event_date == target_weekday:
             day_events[event_id] = event_data
 
     return day_events
@@ -847,8 +846,8 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
 
     additional_height = max(0, (len(legend_labels) - 4) * 0.08)
     new_height = base_height + additional_height
-    fig.set_size_inches(base_width, new_height)
-
+    fig.set_size_inches(base_width + 2.5, new_height)
+    plt.subplots_adjust(right=0.72)
     plt.tight_layout()
-    pdf.savefig()
+    pdf.savefig(bbox_inches="tight")
     plt.close()
