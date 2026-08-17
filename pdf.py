@@ -433,8 +433,29 @@ def _draw_group_table(ax, group_data, days_of_week, start_date, assignment_map, 
                 main_lines = len("\n".join(main_time_texts).split("\n")) if main_time_texts else 0
                 ax.text(x_pos + column_width / 2, text_start_y - (main_lines * 0.06) - 0.2 - (additional_lines * 0.04), additional_text, ha="center", va="center", fontsize=8, color="gray", style="italic")
 
-        ax.add_patch(plt.Rectangle((x_pos, 0.25), column_width, 0.4, facecolor="lightgrey", edgecolor="black", linewidth=1.5))
-        ax.text(x_pos + column_width / 2, 0.25 + 0.2, f"FK: {_duration_to_string(fachkraft_duration)} Std.\nIK: {_duration_to_string(integrationskraft_duration)} Std.", ha="center", va="center", fontsize=10)
+        summary_width = column_width * 0.75
+        summary_x = x_pos + (column_width - summary_width) / 2
+
+        ax.add_patch(
+            plt.Rectangle(
+                (summary_x, 0.28),
+                summary_width,
+                0.28,
+                facecolor="lightgrey",
+                edgecolor="none",
+                linewidth=0
+            )
+        )
+
+        ax.text(
+            x_pos + column_width / 2,
+            0.42,
+            f"FK {_duration_to_string(fachkraft_duration)} · "
+            f"IK {_duration_to_string(integrationskraft_duration)}",
+            ha="center",
+            va="center",
+            fontsize=9
+        )
 
 def _collect_group_data(employee_times, target_assignment, days_of_week):
     group_data = {day: [] for day in days_of_week}
