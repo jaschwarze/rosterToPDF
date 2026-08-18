@@ -341,8 +341,17 @@ def _create_group_view_for_assignment(pdf, assignment, employee_times, assignmen
     special_event_height = 0
 
     if _check_for_special_events(special_events, assignment, start_date, days_of_week):
-        max_counter = max(len(_get_special_events_for_day(special_events, datetime.strptime(start_date, "%d.%m.%Y") + timedelta(days=day_idx)))
-                         for day_idx, day in enumerate(days_of_week))
+        max_counter = max(
+            sum(
+                1
+                for event in _get_special_events_for_day(
+                    special_events,
+                    datetime.strptime(start_date, "%d.%m.%Y") + timedelta(days=day_idx)
+                ).values()
+                if event[4] in (assignment, "Übergreifend")
+            )
+            for day_idx, day in enumerate(days_of_week)
+        )
         special_event_height = 0.5 + max_counter * 0.08
 
     fig, ax = plt.subplots(figsize=(16, max(8, max_employees_per_day * optimal_block_height + 4 + special_event_height)))
@@ -386,10 +395,40 @@ def _draw_group_table(ax, group_data, days_of_week, start_date, assignment_map, 
         if special_events_for_assignment and special_event_height > 0:
             gap = 0.1
             special_event_y_pos = max_employees * block_height + 1 + 0.6 + gap
-            ax.add_patch(plt.Rectangle((x_pos, special_event_y_pos), column_width, special_event_height, facecolor="#FFCFC2", edgecolor="black", linewidth=1))
-            special_event_texts = ["Sondertermine:\n"] + [f"{name}: {start.strftime('%H:%M')} - {end.strftime('%H:%M')} Uhr" if start != time(0, 0) and end != time(0, 0) else
-                                                         f"{name}: {start.strftime('%H:%M')} Uhr" if start != time(0, 0) else name for name, start, end in special_events_for_assignment]
-            ax.text(x_pos + column_width / 2, special_event_y_pos + special_event_height / 2, "\n".join(special_event_texts), ha="center", va="center", fontsize=9, fontweight="bold", color="black")
+
+            ax.add_patch(
+                plt.Rectangle(
+                    (x_pos, special_event_y_pos),
+                    column_width,
+                    special_event_height,
+                    facecolor="#FFF4D6",
+                    edgecolor="#E6A23C",
+                    linewidth=1.5,
+                    linestyle="--",
+                    zorder=2
+                )
+            )
+
+            special_event_texts = ["SONDERTERMINE\n"] + [
+                f"{name}: {start.strftime('%H:%M')} - {end.strftime('%H:%M')} Uhr"
+                if start != time(0, 0) and end != time(0, 0)
+                else f"{name}: {start.strftime('%H:%M')} Uhr"
+                if start != time(0, 0)
+                else name
+                for name, start, end in special_events_for_assignment
+            ]
+
+            ax.text(
+                x_pos + column_width / 2,
+                special_event_y_pos + special_event_height / 2,
+                "\n".join(special_event_texts),
+                ha="center",
+                va="center",
+                fontsize=9,
+                fontweight="normal",
+                color="black",
+                zorder=3
+            )
 
         header_y_pos = max_employees * block_height + 1
         current_date = current_datetime.strftime("%d.%m.")
