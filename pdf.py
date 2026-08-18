@@ -442,18 +442,22 @@ def _draw_group_table(ax, group_data, days_of_week, start_date, assignment_map, 
             ax.add_patch(plt.Rectangle((x_pos, y_pos), column_width, block_height, facecolor="white", edgecolor="black", linewidth=1))
             name_y_pos = y_pos + block_height - 0.15
             ax.text(x_pos + column_width / 2, name_y_pos, employee["name"], ha="center", va="center", fontsize=10, fontweight="bold")
+
             target_entries = [entry for entry in employee["entries"] if entry.get("is_target_group", True)]
             additional_entries = [entry for entry in employee["entries"] if not entry.get("is_target_group", True)]
+
             main_time_texts = [f"{entry['start'].strftime('%H:%M')} - {entry['end'].strftime('%H:%M')}\nPause: {entry['break_start'].strftime('%H:%M')}-{entry['break_end'].strftime('%H:%M')}"
                               if entry.get("break_start") and entry.get("break_end") and isinstance(entry["break_start"], time) and isinstance(entry["break_end"], time)
                               else f"{entry['start'].strftime('%H:%M')} - {entry['end'].strftime('%H:%M')}\nPause: ohne" for entry in target_entries]
+
             additional_time_texts = [f"[{entry['assignment']}] {entry['start'].strftime('%H:%M')} - {entry['end'].strftime('%H:%M')}" +
                                     (f"\nPause: {entry['break_start'].strftime('%H:%M')}-{entry['break_end'].strftime('%H:%M')}" if entry.get("break_start") and entry.get("break_end") and
                                     isinstance(entry["break_start"], time) and isinstance(entry["break_end"], time) else "") for entry in additional_entries]
+
             total_duration = sum((_calculate_duration(entry["start"], entry["end"], entry.get("break_start"), entry.get("break_end")) for entry in target_entries), 0) * 3600
             main_time_texts.append(f"Arbeitszeit: {_duration_to_string(timedelta(seconds=total_duration))} Std.")
-            employee_position = employee_dict.get(employee["name"], {})[1]
 
+            employee_position = employee_dict.get(employee["name"], {})[1]
             if employee_position == "Fachkraft":
                 fachkraft_duration += timedelta(seconds=total_duration)
             elif employee_position == "Integrationskraft":
