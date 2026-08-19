@@ -848,7 +848,7 @@ def _create_employee_view_for_day(pdf, day, data, assignment_map, calendar_week,
                         ax.barh(y, break_width, left=break_start, height=block_height, color="#eeeeee", hatch="////", edgecolor="black", alpha=0.6, linewidth=0.2, zorder=3)
                         ax.text(break_start + break_width / 2, y, "Pause", ha="center", va="center", fontsize=4, zorder=4)
 
-                y_base = y - 0.65
+                y_base = y - 0.45
                 _draw_time_labels_with_lines(ax, all_labels, y_base)
 
     ax.set_xlim(start_hour, end_hour)
