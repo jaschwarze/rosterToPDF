@@ -356,6 +356,7 @@ def _create_group_view_for_assignment(pdf, assignment, employee_times, assignmen
 
     fig, ax = plt.subplots(figsize=(16, max(8, max_employees_per_day * optimal_block_height + 4 + special_event_height)))
     _draw_group_table(ax, group_data, days_of_week, start_date, assignment_map, assignment, special_events, optimal_block_height, special_event_height, employee_dict)
+
     ax.set_title(f"{'Übergreifend' if assignment == 'Übergreifend' else f'Gruppe: {assignment}'} - KW {calendar_week} ({year})", fontsize=18, fontweight="bold", pad=10)
     ax.set_xlim(0, len(days_of_week))
     ax.set_ylim(0, max_employees_per_day * optimal_block_height + 2 + special_event_height)
@@ -474,7 +475,7 @@ def _draw_group_table(ax, group_data, days_of_week, start_date, assignment_map, 
                 additional_text = "\n".join(additional_time_texts)
                 additional_lines = len(additional_text.split("\n"))
                 main_lines = len("\n".join(main_time_texts).split("\n")) if main_time_texts else 0
-                ax.text(x_pos + column_width / 2, text_start_y - (main_lines * 0.06) - 0.2 - (additional_lines * 0.04), additional_text, ha="center", va="center", fontsize=8, color="gray", style="italic")
+                ax.text(x_pos + column_width / 2, text_start_y - (main_lines * 0.06) - 0.2 - (additional_lines * 0.04), additional_text, ha="center", va="center", fontsize=8, color="#4F2121", style="italic")
 
         summary_width = column_width * 0.75
         summary_x = x_pos + (column_width - summary_width) / 2
